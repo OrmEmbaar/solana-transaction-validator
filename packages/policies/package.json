@@ -1,0 +1,35 @@
+{
+    "name": "@solana-signer/policies",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "main": "./dist/index.js",
+    "module": "./dist/index.mjs",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.mjs",
+            "types": "./dist/index.d.ts",
+            "require": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsup",
+        "dev": "tsc --watch",
+        "test": "vitest run",
+        "lint": "eslint . --max-warnings 0",
+        "check-types": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@solana-signer/shared": "workspace:*"
+    },
+    "devDependencies": {
+        "@solana-signer/eslint-config": "workspace:*",
+        "@solana-signer/test-config": "workspace:*",
+        "@solana-signer/tsconfig": "workspace:*",
+        "@types/node": "^24.10.1",
+        "eslint": "^9.39.1",
+        "typescript": "^5.9.3",
+        "vitest": "^4.0.13"
+    }
+}
