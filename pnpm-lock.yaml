@@ -85,6 +85,9 @@ importers:
       '@solana-signer/shared':
         specifier: workspace:*
         version: link:../shared
+      '@solana/kit':
+        specifier: ^5.0.0
+        version: 5.0.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(ws@8.18.3)
     devDependencies:
       '@solana-signer/eslint-config':
         specifier: workspace:*
