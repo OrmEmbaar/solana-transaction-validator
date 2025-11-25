@@ -1,4 +1,9 @@
-import type { Address, Base64EncodedWireTransaction, Instruction, Transaction } from "@solana/kit";
+import type {
+    Address,
+    Base64EncodedWireTransaction,
+    CompiledTransactionMessage,
+    Instruction,
+} from "@solana/kit";
 
 /**
  * The context passed to a policy validator.
@@ -10,8 +15,8 @@ export interface PolicyContext {
     /** The public key of the signer being requested */
     signer: Address;
 
-    /** The fully parsed transaction (if applicable) */
-    transaction?: Transaction;
+    /** The fully parsed transaction message */
+    transaction?: CompiledTransactionMessage;
 
     /**
      * The raw transaction message bytes (if applicable).
@@ -54,4 +59,3 @@ export interface ProgramPolicy extends Policy {
     /** The program ID this policy applies to */
     programAddress: Address;
 }
-
