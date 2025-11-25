@@ -48,3 +48,4 @@ export function validateSignerRole(role: SignerRole, ctx: GlobalPolicyContext): 
             return `Unknown signer role: ${role}`;
     }
 }
+

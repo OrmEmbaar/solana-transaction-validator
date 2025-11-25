@@ -1,6 +1,6 @@
 import type { GlobalPolicyConfig, GlobalPolicyContext, PolicyResult } from "@solana-signer/shared";
-import { validateSignerRole } from "./validators/signer-role.js";
-import { validateTransactionLimits } from "./validators/transaction-limits.js";
+import { validateSignerRole } from "./signer-role.js";
+import { validateTransactionLimits } from "./transaction-limits.js";
 
 /**
  * Validates the global policy configuration for a signing request.
@@ -20,12 +20,6 @@ export function validateGlobalPolicy(
     // 2. Validate Transaction Limits
     const limitsResult = validateTransactionLimits(config, ctx);
     if (limitsResult !== true) return limitsResult;
-
-    // TODO: Implement additional global validations:
-    // - maxSolOutflowLamports (requires simulation)
-    // - maxTokenOutflowByMint (requires simulation)
-    // - forbidAccountClosure
-    // - forbidAuthorityChanges
 
     return true;
 }
