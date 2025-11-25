@@ -83,11 +83,17 @@ export interface GlobalPolicyConfig {
 
     /** Maximum number of signers required */
     maxSignatures?: number;
+}
 
-    /** Maximum SOL outflow in lamports (requires simulation or analysis) */
+/**
+ * Simulation-based constraints that require RPC access.
+ * These are validated separately from GlobalPolicyConfig.
+ */
+export interface SimulationConstraints {
+    /** Maximum SOL outflow in lamports */
     maxSolOutflowLamports?: bigint;
 
-    /** Maximum token outflow by mint address (requires simulation or analysis) */
+    /** Maximum token outflow by mint address */
     maxTokenOutflowByMint?: Record<Address, bigint>;
 
     /** If true, account closures are forbidden */
