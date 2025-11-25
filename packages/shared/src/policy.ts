@@ -1,36 +1,52 @@
 import type {
     Address,
     Base64EncodedWireTransaction,
+    BaseTransactionMessage,
     CompiledTransactionMessage,
     Instruction,
+    TransactionMessageWithFeePayer,
+    TransactionMessageWithLifetime,
 } from "@solana/kit";
 
 /**
- * The context passed to a policy validator.
+ * Base context shared by all policy validators.
  */
-export interface PolicyContext {
+export interface BasePolicyContext {
     /** The authenticated principal requesting the signature */
     principal?: string;
 
     /** The public key of the signer being requested */
     signer: Address;
 
-    /** The fully parsed transaction message */
-    transaction?: CompiledTransactionMessage;
-
-    /**
-     * The raw transaction message bytes (if applicable).
-     * Useful for policies that need to verify the exact bytes being signed.
-     */
-    transactionMessage?: Base64EncodedWireTransaction;
-
-    /**
-     * The instruction being validated (if iterating instructions).
-     */
-    instruction?: Instruction;
-
-    /** Arbitrary context passed from the request */
+    /** Arbitrary context from the request */
     requestContext?: Record<string, unknown>;
+}
+
+/**
+ * Context for global policies (full transaction access).
+ */
+export interface GlobalPolicyContext extends BasePolicyContext {
+    /** The compiled transaction message (low-level) */
+    transaction: CompiledTransactionMessage;
+
+    /** The decompiled message (high-level, inspectable) */
+    decompiledMessage: BaseTransactionMessage &
+        TransactionMessageWithFeePayer &
+        TransactionMessageWithLifetime;
+
+    /** The raw wire transaction bytes */
+    transactionMessage?: Base64EncodedWireTransaction;
+}
+
+/**
+ * Context for instruction-level policies.
+ */
+export interface InstructionPolicyContext extends GlobalPolicyContext {
+    /** The specific instruction being validated */
+    instruction: Instruction;
+
+    /** The index of this instruction in the transaction */
+    instructionIndex: number;
 }
 
 /**
@@ -42,20 +58,63 @@ export interface PolicyContext {
 export type PolicyResult = boolean | string;
 
 /**
- * A policy that validates a signing request.
+ * Role the signer can play in a transaction.
  */
-export interface Policy {
-    /**
-     * Validates the request context.
-     * Returns `true` if allowed, `false` or a reason string if denied.
-     */
-    validate(ctx: PolicyContext): Promise<PolicyResult> | PolicyResult;
+export enum SignerRole {
+    /** Signer can ONLY pay fees (must be fee payer, cannot participate) */
+    FeePayerOnly = "fee-payer-only",
+
+    /** Signer can ONLY participate (cannot be fee payer) */
+    ParticipantOnly = "participant-only",
+
+    /** Signer can be fee payer, participant, or both (no restriction) */
+    Any = "any",
 }
 
 /**
- * A specialized policy for a specific program.
+ * Global policy configuration applied to all transactions.
  */
-export interface ProgramPolicy extends Policy {
+export interface GlobalPolicyConfig {
+    /** How the signer can participate in the transaction (REQUIRED) */
+    signerRole: SignerRole;
+
+    /** Maximum number of instructions allowed */
+    maxInstructions?: number;
+
+    /** Maximum number of signers required */
+    maxSignatures?: number;
+
+    /** Maximum SOL outflow in lamports (requires simulation or analysis) */
+    maxSolOutflowLamports?: bigint;
+
+    /** Maximum token outflow by mint address (requires simulation or analysis) */
+    maxTokenOutflowByMint?: Record<Address, bigint>;
+
+    /** If true, account closures are forbidden */
+    forbidAccountClosure?: boolean;
+
+    /** If true, authority changes are forbidden */
+    forbidAuthorityChanges?: boolean;
+}
+
+/**
+ * A global policy validates the entire transaction context.
+ */
+export interface GlobalPolicy {
+    validate(ctx: GlobalPolicyContext): Promise<PolicyResult> | PolicyResult;
+}
+
+/**
+ * An instruction policy validates a single instruction.
+ */
+export interface InstructionPolicy {
+    validate(ctx: InstructionPolicyContext): Promise<PolicyResult> | PolicyResult;
+}
+
+/**
+ * A program-specific policy for instruction-level validation.
+ */
+export interface ProgramPolicy extends InstructionPolicy {
     /** The program ID this policy applies to */
     programAddress: Address;
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { createPolicyValidator } from "../policy-engine.js";
-import { type Policy } from "@solana-signer/shared";
+import { type InstructionPolicy, SignerRole } from "@solana-signer/shared";
 import {
     address,
     compileTransactionMessage,
@@ -9,7 +9,7 @@ import {
     setTransactionMessageLifetimeUsingBlockhash,
     appendTransactionMessageInstruction,
     setTransactionMessageFeePayer,
-    Blockhash,
+    type Blockhash,
 } from "@solana/kit";
 
 // Helper to create a valid transaction message
@@ -18,7 +18,7 @@ const createTestTransaction = (programId = "11111111111111111111111111111111") =
         blockhash: "5c9TGe5te815W476jY7Z96PE5844626366663444346134646261393166" as Blockhash,
         lastValidBlockHeight: BigInt(0),
     };
-    // Use a distinct, valid address for the fee payer (not a program address)
+    // Use a distinct, valid address for the fee payer
     const payer = address("4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T");
 
     return pipe(
@@ -39,16 +39,18 @@ const createTestTransaction = (programId = "11111111111111111111111111111111") =
 };
 
 describe("PolicyEngine", () => {
-    const denyPolicy: Policy = {
-        validate: vi.fn().mockResolvedValue("Denied by policy"),
+    const mockInstructionPolicy: InstructionPolicy = {
+        validate: vi.fn().mockResolvedValue(true),
     };
 
-    it("should allow transaction when valid policies are present", async () => {
-        // This test confirms that the engine correctly delegates to a passing policy
+    it("should allow transaction when program policy passes", async () => {
         const programId = address("11111111111111111111111111111111");
         const validator = createPolicyValidator({
+            global: {
+                signerRole: SignerRole.Any,
+            },
             programs: {
-                [programId]: { validate: () => true },
+                [programId]: mockInstructionPolicy,
             },
         });
         const tx = createTestTransaction();
@@ -58,27 +60,16 @@ describe("PolicyEngine", () => {
         ).resolves.not.toThrow();
     });
 
-    it("should enforce global policies", async () => {
-        const programId = address("11111111111111111111111111111111");
-        const validator = createPolicyValidator({
-            global: [denyPolicy],
-            programs: {
-                [programId]: { validate: () => true },
-            },
-        });
-        const tx = createTestTransaction();
-
-        await expect(
-            validator(tx, { signer: address("11111111111111111111111111111111") }),
-        ).rejects.toThrow("Denied by policy");
-        expect(denyPolicy.validate).toHaveBeenCalled();
-    });
-
     it("should route to program-specific policies", async () => {
         const programId = address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
-        const tokenPolicy = { validate: vi.fn().mockResolvedValue(true) };
+        const tokenPolicy: InstructionPolicy = {
+            validate: vi.fn().mockResolvedValue(true),
+        };
 
         const validator = createPolicyValidator({
+            global: {
+                signerRole: SignerRole.Any,
+            },
             programs: { [programId]: tokenPolicy },
         });
 
@@ -93,6 +84,9 @@ describe("PolicyEngine", () => {
 
     it("should deny unknown programs (strict allowlist)", async () => {
         const validator = createPolicyValidator({
+            global: {
+                signerRole: SignerRole.Any,
+            },
             programs: {}, // No programs allowed
         });
 
@@ -106,9 +100,14 @@ describe("PolicyEngine", () => {
 
     it("should fail if a program policy returns false", async () => {
         const programId = address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
-        const tokenPolicy = { validate: vi.fn().mockResolvedValue("Token policy says no") };
+        const tokenPolicy: InstructionPolicy = {
+            validate: vi.fn().mockResolvedValue("Token policy says no"),
+        };
 
         const validator = createPolicyValidator({
+            global: {
+                signerRole: SignerRole.Any,
+            },
             programs: { [programId]: tokenPolicy },
         });
 
