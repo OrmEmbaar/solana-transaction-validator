@@ -10,20 +10,22 @@ import {
     setTransactionMessageLifetimeUsingBlockhash,
     setTransactionMessageFeePayer,
     decompileTransactionMessage,
-    type Blockhash,
     appendTransactionMessageInstructions,
+    appendTransactionMessageInstruction,
+    type Blockhash,
 } from "@solana/kit";
 
 // Helper to create a test context
 const createTestContext = (
     signerAddr = "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
+    feePayerAddr = "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
     numInstructions = 1,
 ): GlobalPolicyContext => {
     const blockhash = {
         blockhash: "5c9TGe5te815W476jY7Z96PE5844626366663444346134646261393166" as Blockhash,
         lastValidBlockHeight: BigInt(0),
     };
-    const payer = address("4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T");
+    const payer = address(feePayerAddr);
 
     // Build instructions array
     const instructions = Array.from({ length: numInstructions }, () => ({
@@ -57,7 +59,11 @@ describe("validateGlobalPolicy", () => {
                 signerRole: SignerRole.Any,
                 maxInstructions: 5,
             };
-            const ctx = createTestContext("4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T", 3);
+            const ctx = createTestContext(
+                "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
+                undefined,
+                3,
+            );
 
             const result = validateGlobalPolicy(config, ctx);
             expect(result).toBe(true);
@@ -68,7 +74,11 @@ describe("validateGlobalPolicy", () => {
                 signerRole: SignerRole.Any,
                 maxInstructions: 2,
             };
-            const ctx = createTestContext("4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T", 5);
+            const ctx = createTestContext(
+                "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
+                undefined,
+                5,
+            );
 
             const result = validateGlobalPolicy(config, ctx);
             expect(result).toContain("Too many instructions");
@@ -86,38 +96,99 @@ describe("validateGlobalPolicy", () => {
         });
     });
 
-    describe("Signer Role (Stub Behavior)", () => {
+    describe("Signer Role Validation", () => {
         it("should accept any signer role when mode is Any", () => {
-            const config: GlobalPolicyConfig = {
-                signerRole: SignerRole.Any,
-            };
-            const ctx = createTestContext();
+            const signerAddr = "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T";
 
-            const result = validateGlobalPolicy(config, ctx);
-            expect(result).toBe(true);
+            // Test as fee payer
+            const ctxAsFeePayer = createTestContext(signerAddr, signerAddr);
+            expect(validateGlobalPolicy({ signerRole: SignerRole.Any }, ctxAsFeePayer)).toBe(true);
+
+            // Test as non-fee payer
+            const ctxAsNonFeePayer = createTestContext(
+                signerAddr,
+                "5Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
+            );
+            expect(validateGlobalPolicy({ signerRole: SignerRole.Any }, ctxAsNonFeePayer)).toBe(
+                true,
+            );
         });
 
-        it("should accept FeePayerOnly mode (stub implementation)", () => {
-            const config: GlobalPolicyConfig = {
-                signerRole: SignerRole.FeePayerOnly,
-            };
-            const ctx = createTestContext();
+        it("should require signer to be fee payer when mode is FeePayerOnly", () => {
+            const signerAddr = "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T";
 
-            // Stub accepts all for now
-            const result = validateGlobalPolicy(config, ctx);
-            expect(result).toBe(true);
+            // Test: signer IS fee payer (should pass)
+            const ctxAsFeePayer = createTestContext(signerAddr, signerAddr);
+            expect(
+                validateGlobalPolicy({ signerRole: SignerRole.FeePayerOnly }, ctxAsFeePayer),
+            ).toBe(true);
+
+            // Test: signer is NOT fee payer (should fail)
+            const ctxAsNonFeePayer = createTestContext(
+                signerAddr,
+                "5Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
+            );
+            const result = validateGlobalPolicy(
+                { signerRole: SignerRole.FeePayerOnly },
+                ctxAsNonFeePayer,
+            );
+            expect(result).toBe("Signer must be the fee payer");
         });
 
-        it("should accept ParticipantOnly mode (stub implementation)", () => {
-            const config: GlobalPolicyConfig = {
-                signerRole: SignerRole.ParticipantOnly,
-            };
-            const ctx = createTestContext();
+        it("should prohibit signer as fee payer when mode is ParticipantOnly", () => {
+            const signerAddr = "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T";
 
-            // Stub accepts all for now
-            const result = validateGlobalPolicy(config, ctx);
-            expect(result).toBe(true);
+            // Test: signer is NOT fee payer AND is participant (should pass)
+            const blockhash = {
+                blockhash:
+                    "5c9TGe5te815W476jY7Z96PE5844626366663444346134646261393166" as Blockhash,
+                lastValidBlockHeight: BigInt(0),
+            };
+            const msg = pipe(
+                createTransactionMessage({ version: 0 }),
+                (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
+                (tx) =>
+                    setTransactionMessageFeePayer(
+                        address("5Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T"),
+                        tx,
+                    ),
+                (tx) =>
+                    appendTransactionMessageInstruction(
+                        {
+                            programAddress: address("11111111111111111111111111111111"),
+                            accounts: [
+                                {
+                                    address: address(signerAddr),
+                                    role: 0,
+                                },
+                            ],
+                            data: new Uint8Array([]),
+                        },
+                        tx,
+                    ),
+            );
+            const compiled = compileTransactionMessage(msg);
+            const decompiledMessage = decompileTransactionMessage(compiled);
+            const ctxAsParticipant: GlobalPolicyContext = {
+                signer: address(signerAddr),
+                transaction: compiled,
+                decompiledMessage,
+            };
+
+            expect(
+                validateGlobalPolicy({ signerRole: SignerRole.ParticipantOnly }, ctxAsParticipant),
+            ).toBe(true);
+
+            // Test: signer IS fee payer (should fail)
+            const ctxAsFeePayer = createTestContext(signerAddr, signerAddr);
+            const result = validateGlobalPolicy(
+                { signerRole: SignerRole.ParticipantOnly },
+                ctxAsFeePayer,
+            );
+            expect(result).toBe("Signer cannot be the fee payer");
         });
+
+        // TODO: Add test for FeePayerOnly rejecting participant once AccountMeta type issue is resolved
     });
 
     describe("Combined Constraints", () => {
@@ -127,7 +198,11 @@ describe("validateGlobalPolicy", () => {
                 maxInstructions: 10,
                 maxSignatures: 5,
             };
-            const ctx = createTestContext("4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T", 3);
+            const ctx = createTestContext(
+                "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
+                undefined,
+                3,
+            );
 
             const result = validateGlobalPolicy(config, ctx);
             expect(result).toBe(true);
@@ -139,7 +214,11 @@ describe("validateGlobalPolicy", () => {
                 maxInstructions: 2, // This will fail
                 maxSignatures: 0, // This would also fail, but shouldn't be reached
             };
-            const ctx = createTestContext("4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T", 5);
+            const ctx = createTestContext(
+                "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
+                undefined,
+                5,
+            );
 
             const result = validateGlobalPolicy(config, ctx);
             expect(result).toContain("Too many instructions");
