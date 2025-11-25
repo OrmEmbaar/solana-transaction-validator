@@ -21,7 +21,8 @@
         "check-types": "tsc --noEmit"
     },
     "dependencies": {
-        "@solana-signer/shared": "workspace:*"
+        "@solana-signer/shared": "workspace:*",
+        "@solana/kit": "^5.0.0"
     },
     "devDependencies": {
         "@solana-signer/eslint-config": "workspace:*",
