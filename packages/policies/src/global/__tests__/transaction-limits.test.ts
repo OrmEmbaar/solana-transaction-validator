@@ -13,7 +13,7 @@ import {
     type Blockhash,
 } from "@solana/kit";
 
-const createContext = (numInstructions: number, numSigners = 1): GlobalPolicyContext => {
+const createContext = (numInstructions: number, _numSigners = 1): GlobalPolicyContext => {
     const blockhash = {
         blockhash: "5c9TGe5te815W476jY7Z96PE5844626366663444346134646261393166" as Blockhash,
         lastValidBlockHeight: BigInt(0),

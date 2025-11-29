@@ -29,10 +29,9 @@ export interface SimulationConstraints {
  * @returns PolicyResult (true if allowed, string with reason if denied)
  */
 export async function validateSimulation(
-    constraints: SimulationConstraints,
-    ctx: GlobalPolicyContext,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    rpc: unknown, // TODO: Type this properly when we implement RPC integration
+    _constraints: SimulationConstraints,
+    _ctx: GlobalPolicyContext,
+    _rpc: unknown, // TODO: Type this properly when we implement RPC integration
 ): Promise<PolicyResult> {
     // TODO: Implement simulation-based validation
     // 1. Simulate transaction using RPC
