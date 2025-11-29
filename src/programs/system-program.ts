@@ -1,0 +1,366 @@
+import {
+    type Address,
+    type Instruction,
+    type InstructionWithAccounts,
+    type InstructionWithData,
+    type AccountMeta,
+    assertIsInstructionForProgram,
+    assertIsInstructionWithData,
+    assertIsInstructionWithAccounts,
+} from "@solana/kit";
+import {
+    SYSTEM_PROGRAM_ADDRESS,
+    SystemInstruction,
+    identifySystemInstruction,
+    parseTransferSolInstruction,
+    parseCreateAccountInstruction,
+    parseAssignInstruction,
+    parseAllocateInstruction,
+    parseCreateAccountWithSeedInstruction,
+    parseAllocateWithSeedInstruction,
+    parseAssignWithSeedInstruction,
+    parseTransferSolWithSeedInstruction,
+} from "@solana-program/system";
+import type {
+    InstructionPolicy,
+    InstructionPolicyContext,
+    PolicyResult,
+} from "../types.js";
+import { runCustomValidator, type CustomValidationCallback } from "./utils.js";
+
+// Re-export for convenience
+export { SYSTEM_PROGRAM_ADDRESS, SystemInstruction };
+
+// Type for a fully validated instruction
+type ValidatedInstruction = Instruction &
+    InstructionWithData<Uint8Array> &
+    InstructionWithAccounts<readonly AccountMeta[]>;
+
+// ============================================================================
+// Per-instruction config types
+// ============================================================================
+
+/** Config for TransferSol and TransferSolWithSeed instructions */
+export interface TransferSolConfig {
+    /** Maximum transfer amount in lamports */
+    maxLamports?: bigint;
+    /** Allowlist of destination addresses */
+    allowedDestinations?: Address[];
+}
+
+/** Config for CreateAccount and CreateAccountWithSeed instructions */
+export interface CreateAccountConfig {
+    /** Maximum lamports to fund the new account */
+    maxLamports?: bigint;
+    /** Maximum space to allocate */
+    maxSpace?: bigint;
+    /** Allowlist of programs that can own the created account */
+    allowedOwnerPrograms?: Address[];
+}
+
+/** Config for Assign and AssignWithSeed instructions */
+export interface AssignConfig {
+    /** Allowlist of programs that can be assigned as owner */
+    allowedOwnerPrograms?: Address[];
+}
+
+/** Config for Allocate and AllocateWithSeed instructions */
+export interface AllocateConfig {
+    /** Maximum space to allocate */
+    maxSpace?: bigint;
+}
+
+/** Empty config for instructions with no additional constraints */
+export type NoConstraintsConfig = Record<string, never>;
+
+/** Map instruction types to their config types */
+export interface SystemInstructionConfigs {
+    [SystemInstruction.TransferSol]: TransferSolConfig;
+    [SystemInstruction.TransferSolWithSeed]: TransferSolConfig;
+    [SystemInstruction.CreateAccount]: CreateAccountConfig;
+    [SystemInstruction.CreateAccountWithSeed]: CreateAccountConfig;
+    [SystemInstruction.Assign]: AssignConfig;
+    [SystemInstruction.AssignWithSeed]: AssignConfig;
+    [SystemInstruction.Allocate]: AllocateConfig;
+    [SystemInstruction.AllocateWithSeed]: AllocateConfig;
+    // Nonce operations - no additional config needed
+    [SystemInstruction.AdvanceNonceAccount]: NoConstraintsConfig;
+    [SystemInstruction.WithdrawNonceAccount]: NoConstraintsConfig;
+    [SystemInstruction.InitializeNonceAccount]: NoConstraintsConfig;
+    [SystemInstruction.AuthorizeNonceAccount]: NoConstraintsConfig;
+    [SystemInstruction.UpgradeNonceAccount]: NoConstraintsConfig;
+}
+
+// ============================================================================
+// Main config type
+// ============================================================================
+
+/**
+ * Configuration for the System Program policy.
+ *
+ * Each instruction type can be:
+ * - Omitted: instruction is DENIED
+ * - `true`: instruction is ALLOWED with no constraints
+ * - Config object: instruction is ALLOWED with constraints
+ */
+export interface SystemProgramPolicyConfig {
+    /** Per-instruction configuration */
+    instructions: {
+        [K in SystemInstruction]?: SystemInstructionConfigs[K] | boolean;
+    };
+    /** Optional custom validator for additional logic */
+    customValidator?: CustomValidationCallback;
+}
+
+// ============================================================================
+// Policy implementation
+// ============================================================================
+
+/**
+ * Creates a policy for the System Program.
+ *
+ * Uses the official @solana-program/system package for instruction identification
+ * and parsing, ensuring accurate discriminator matching and data extraction.
+ *
+ * @param config - The System Program policy configuration
+ * @returns An InstructionPolicy that validates System Program instructions
+ *
+ * @example
+ * ```typescript
+ * const systemPolicy = createSystemProgramPolicy({
+ *     instructions: {
+ *         [SystemInstruction.TransferSol]: {
+ *             maxLamports: 1_000_000_000n, // 1 SOL max
+ *             allowedDestinations: [TREASURY_ADDRESS],
+ *         },
+ *         [SystemInstruction.CreateAccount]: true, // Allow with no constraints
+ *         // All other instructions denied (omitted)
+ *     },
+ * });
+ * ```
+ */
+export function createSystemProgramPolicy(config: SystemProgramPolicyConfig): InstructionPolicy {
+    return {
+        async validate(ctx: InstructionPolicyContext): Promise<PolicyResult> {
+            // Assert this is a valid System Program instruction with data and accounts
+            assertIsInstructionForProgram(ctx.instruction, SYSTEM_PROGRAM_ADDRESS);
+            assertIsInstructionWithData(ctx.instruction);
+            assertIsInstructionWithAccounts(ctx.instruction);
+
+            // After assertions, instruction is now ValidatedInstruction
+            const ix = ctx.instruction as ValidatedInstruction;
+
+            // Identify the instruction type
+            const ixType = identifySystemInstruction(ix.data);
+            const ixConfig = config.instructions[ixType];
+
+            // Omitted = denied
+            if (ixConfig === undefined) {
+                return `System Program: ${SystemInstruction[ixType]} instruction not allowed`;
+            }
+
+            // true = allow with no constraints
+            if (ixConfig === true) {
+                return runCustomValidator(config.customValidator, ctx);
+            }
+
+            // false should not happen (undefined is the deny case), but handle it
+            if (ixConfig === false) {
+                return `System Program: ${SystemInstruction[ixType]} instruction not allowed`;
+            }
+
+            // Validate based on instruction type
+            const validationResult = validateInstruction(ixType, ixConfig, ix);
+            if (validationResult !== true) {
+                return validationResult;
+            }
+
+            return runCustomValidator(config.customValidator, ctx);
+        },
+    };
+}
+
+// ============================================================================
+// Instruction-specific validation
+// ============================================================================
+
+type InstructionConfig =
+    | TransferSolConfig
+    | CreateAccountConfig
+    | AssignConfig
+    | AllocateConfig
+    | NoConstraintsConfig;
+
+function validateInstruction(
+    ixType: SystemInstruction,
+    ixConfig: InstructionConfig,
+    ix: ValidatedInstruction,
+): PolicyResult {
+    switch (ixType) {
+        case SystemInstruction.TransferSol:
+            return validateTransferSol(ixConfig as TransferSolConfig, ix);
+
+        case SystemInstruction.TransferSolWithSeed:
+            return validateTransferSolWithSeed(ixConfig as TransferSolConfig, ix);
+
+        case SystemInstruction.CreateAccount:
+            return validateCreateAccount(ixConfig as CreateAccountConfig, ix);
+
+        case SystemInstruction.CreateAccountWithSeed:
+            return validateCreateAccountWithSeed(ixConfig as CreateAccountConfig, ix);
+
+        case SystemInstruction.Assign:
+            return validateAssign(ixConfig as AssignConfig, ix);
+
+        case SystemInstruction.AssignWithSeed:
+            return validateAssignWithSeed(ixConfig as AssignConfig, ix);
+
+        case SystemInstruction.Allocate:
+            return validateAllocate(ixConfig as AllocateConfig, ix);
+
+        case SystemInstruction.AllocateWithSeed:
+            return validateAllocateWithSeed(ixConfig as AllocateConfig, ix);
+
+        // Nonce operations - no additional validation needed
+        case SystemInstruction.AdvanceNonceAccount:
+        case SystemInstruction.WithdrawNonceAccount:
+        case SystemInstruction.InitializeNonceAccount:
+        case SystemInstruction.AuthorizeNonceAccount:
+        case SystemInstruction.UpgradeNonceAccount:
+            return true;
+
+        default:
+            return `System Program: Unknown instruction type ${ixType}`;
+    }
+}
+
+function validateTransferSol(config: TransferSolConfig, ix: ValidatedInstruction): PolicyResult {
+    const parsed = parseTransferSolInstruction(ix);
+
+    if (config.maxLamports !== undefined && parsed.data.amount > config.maxLamports) {
+        return `System Program: TransferSol amount ${parsed.data.amount} exceeds limit ${config.maxLamports}`;
+    }
+
+    if (config.allowedDestinations !== undefined) {
+        const dest = parsed.accounts.destination.address;
+        if (!config.allowedDestinations.includes(dest)) {
+            return `System Program: TransferSol destination ${dest} not in allowlist`;
+        }
+    }
+
+    return true;
+}
+
+function validateTransferSolWithSeed(
+    config: TransferSolConfig,
+    ix: ValidatedInstruction,
+): PolicyResult {
+    const parsed = parseTransferSolWithSeedInstruction(ix);
+
+    if (config.maxLamports !== undefined && parsed.data.amount > config.maxLamports) {
+        return `System Program: TransferSolWithSeed amount ${parsed.data.amount} exceeds limit ${config.maxLamports}`;
+    }
+
+    if (config.allowedDestinations !== undefined) {
+        const dest = parsed.accounts.destination.address;
+        if (!config.allowedDestinations.includes(dest)) {
+            return `System Program: TransferSolWithSeed destination ${dest} not in allowlist`;
+        }
+    }
+
+    return true;
+}
+
+function validateCreateAccount(
+    config: CreateAccountConfig,
+    ix: ValidatedInstruction,
+): PolicyResult {
+    const parsed = parseCreateAccountInstruction(ix);
+
+    if (config.maxLamports !== undefined && parsed.data.lamports > config.maxLamports) {
+        return `System Program: CreateAccount lamports ${parsed.data.lamports} exceeds limit ${config.maxLamports}`;
+    }
+
+    if (config.maxSpace !== undefined && parsed.data.space > config.maxSpace) {
+        return `System Program: CreateAccount space ${parsed.data.space} exceeds limit ${config.maxSpace}`;
+    }
+
+    if (config.allowedOwnerPrograms !== undefined) {
+        const owner = parsed.data.programAddress;
+        if (!config.allowedOwnerPrograms.includes(owner)) {
+            return `System Program: CreateAccount owner program ${owner} not in allowlist`;
+        }
+    }
+
+    return true;
+}
+
+function validateCreateAccountWithSeed(
+    config: CreateAccountConfig,
+    ix: ValidatedInstruction,
+): PolicyResult {
+    const parsed = parseCreateAccountWithSeedInstruction(ix);
+
+    if (config.maxLamports !== undefined && parsed.data.amount > config.maxLamports) {
+        return `System Program: CreateAccountWithSeed lamports ${parsed.data.amount} exceeds limit ${config.maxLamports}`;
+    }
+
+    if (config.maxSpace !== undefined && parsed.data.space > config.maxSpace) {
+        return `System Program: CreateAccountWithSeed space ${parsed.data.space} exceeds limit ${config.maxSpace}`;
+    }
+
+    if (config.allowedOwnerPrograms !== undefined) {
+        const owner = parsed.data.programAddress;
+        if (!config.allowedOwnerPrograms.includes(owner)) {
+            return `System Program: CreateAccountWithSeed owner program ${owner} not in allowlist`;
+        }
+    }
+
+    return true;
+}
+
+function validateAssign(config: AssignConfig, ix: ValidatedInstruction): PolicyResult {
+    const parsed = parseAssignInstruction(ix);
+
+    if (config.allowedOwnerPrograms !== undefined) {
+        const owner = parsed.data.programAddress;
+        if (!config.allowedOwnerPrograms.includes(owner)) {
+            return `System Program: Assign owner program ${owner} not in allowlist`;
+        }
+    }
+
+    return true;
+}
+
+function validateAssignWithSeed(config: AssignConfig, ix: ValidatedInstruction): PolicyResult {
+    const parsed = parseAssignWithSeedInstruction(ix);
+
+    if (config.allowedOwnerPrograms !== undefined) {
+        const owner = parsed.data.programAddress;
+        if (!config.allowedOwnerPrograms.includes(owner)) {
+            return `System Program: AssignWithSeed owner program ${owner} not in allowlist`;
+        }
+    }
+
+    return true;
+}
+
+function validateAllocate(config: AllocateConfig, ix: ValidatedInstruction): PolicyResult {
+    const parsed = parseAllocateInstruction(ix);
+
+    if (config.maxSpace !== undefined && parsed.data.space > config.maxSpace) {
+        return `System Program: Allocate space ${parsed.data.space} exceeds limit ${config.maxSpace}`;
+    }
+
+    return true;
+}
+
+function validateAllocateWithSeed(config: AllocateConfig, ix: ValidatedInstruction): PolicyResult {
+    const parsed = parseAllocateWithSeedInstruction(ix);
+
+    if (config.maxSpace !== undefined && parsed.data.space > config.maxSpace) {
+        return `System Program: AllocateWithSeed space ${parsed.data.space} exceeds limit ${config.maxSpace}`;
+    }
+
+    return true;
+}
