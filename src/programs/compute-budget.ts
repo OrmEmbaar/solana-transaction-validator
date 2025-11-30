@@ -132,7 +132,8 @@ export function createComputeBudgetPolicy(config: ComputeBudgetPolicyConfig): In
 
             // 1. Deny: undefined or false
             if (ixConfig === undefined || ixConfig === false) {
-                return `Compute Budget: ${ComputeBudgetInstruction[ixType]} instruction not allowed`;
+                const reason = ixConfig === false ? "explicitly denied" : "not allowed";
+                return `Compute Budget: ${ComputeBudgetInstruction[ixType]} instruction ${reason}`;
             }
 
             // 2. Allow all: true
