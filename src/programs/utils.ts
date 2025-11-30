@@ -1,12 +1,12 @@
 import type { ReadonlyUint8Array } from "@solana/kit";
-import type { InstructionPolicyContext, PolicyResult } from "../types.js";
+import type {
+    InstructionPolicyContext,
+    PolicyResult,
+    CustomValidationCallback,
+} from "../types.js";
 
-/**
- * Callback type for custom validation logic.
- */
-export type CustomValidationCallback = (
-    ctx: InstructionPolicyContext,
-) => Promise<PolicyResult> | PolicyResult;
+// Re-export for convenience
+export type { CustomValidationCallback };
 
 /**
  * Check if two byte arrays are equal.
@@ -34,11 +34,11 @@ export function hasPrefix(data: ReadonlyUint8Array, prefix: ReadonlyUint8Array):
  * Compose two validators into one. Runs both validators in sequence.
  * Returns the first error encountered, or true if both pass.
  */
-export function composeValidators(
-    first: CustomValidationCallback,
-    second: CustomValidationCallback,
-): CustomValidationCallback {
-    return async (ctx: InstructionPolicyContext): Promise<PolicyResult> => {
+export function composeValidators<TProgramAddress extends string = string>(
+    first: CustomValidationCallback<TProgramAddress>,
+    second: CustomValidationCallback<TProgramAddress>,
+): CustomValidationCallback<TProgramAddress> {
+    return async (ctx: InstructionPolicyContext<TProgramAddress>): Promise<PolicyResult> => {
         const firstResult = await first(ctx);
         if (firstResult !== true) return firstResult;
         return await second(ctx);
@@ -48,9 +48,9 @@ export function composeValidators(
 /**
  * Helper to run a custom validator if provided.
  */
-export async function runCustomValidator(
-    validator: CustomValidationCallback | undefined,
-    ctx: InstructionPolicyContext,
+export async function runCustomValidator<TProgramAddress extends string = string>(
+    validator: CustomValidationCallback<TProgramAddress> | undefined,
+    ctx: InstructionPolicyContext<TProgramAddress>,
 ): Promise<PolicyResult> {
     if (validator) {
         return await validator(ctx);

@@ -40,10 +40,14 @@ export interface GlobalPolicyContext extends BasePolicyContext {
 
 /**
  * Context for instruction-level policies.
+ * Generic version that allows narrowing to specific program addresses.
+ *
+ * @template TProgramAddress - The program address type (narrows the instruction)
  */
-export interface InstructionPolicyContext extends GlobalPolicyContext {
+export interface InstructionPolicyContext<TProgramAddress extends string = string>
+    extends GlobalPolicyContext {
     /** The specific instruction being validated */
-    instruction: Instruction;
+    instruction: Instruction<TProgramAddress>;
 
     /** The index of this instruction in the transaction */
     instructionIndex: number;
@@ -56,6 +60,15 @@ export interface InstructionPolicyContext extends GlobalPolicyContext {
  * - string: Denied with reason
  */
 export type PolicyResult = boolean | string;
+
+/**
+ * Custom validation callback with program-specific typing.
+ *
+ * @template TProgramAddress - The program address type for narrowing
+ */
+export type CustomValidationCallback<TProgramAddress extends string = string> = (
+    ctx: InstructionPolicyContext<TProgramAddress>,
+) => Promise<PolicyResult> | PolicyResult;
 
 /**
  * Role the signer can play in a transaction.
@@ -123,5 +136,48 @@ export interface InstructionPolicy {
 export interface ProgramPolicy extends InstructionPolicy {
     /** The program ID this policy applies to */
     programAddress: Address;
+}
+
+/**
+ * Configuration for a single instruction.
+ * Can include declarative constraints and/or a custom validator.
+ *
+ * @template TProgramAddress - The program address literal type
+ * @template TConfig - The instruction-specific config type
+ */
+export type InstructionConfig<TProgramAddress extends string, TConfig> =
+    | boolean // true = allow, false = deny
+    | TConfig // Allow with declarative constraints
+    | (TConfig & {
+          /** Per-instruction custom validator */
+          customValidator?: CustomValidationCallback<TProgramAddress>;
+      });
+
+/**
+ * Base configuration for program policies with program-specific typing.
+ *
+ * @template TProgramAddress - The program address literal type
+ * @template TInstruction - The instruction enum type
+ * @template TInstructionConfigs - Map of instruction types to their config types
+ */
+export interface ProgramPolicyConfig<
+    TProgramAddress extends string,
+    TInstruction extends number | string,
+    TInstructionConfigs extends Record<TInstruction, unknown>,
+> {
+    /**
+     * Per-instruction configuration.
+     * - Omitted/undefined: instruction is implicitly DENIED
+     * - `false`: instruction is explicitly DENIED (self-documenting)
+     * - `true`: instruction is ALLOWED with no constraints
+     * - Config object: instruction is ALLOWED with declarative constraints
+     * - Config with customValidator: instruction is ALLOWED with constraints + custom logic
+     */
+    instructions: {
+        [K in TInstruction]?: InstructionConfig<TProgramAddress, TInstructionConfigs[K]>;
+    };
+
+    /** Program-level custom validator (runs after all per-instruction validation) */
+    customValidator?: CustomValidationCallback<TProgramAddress>;
 }
 

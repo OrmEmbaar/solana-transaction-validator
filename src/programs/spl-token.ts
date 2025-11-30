@@ -22,11 +22,20 @@ import {
     parseBurnCheckedInstruction,
     parseSetAuthorityInstruction,
 } from "@solana-program/token";
-import type { InstructionPolicy, InstructionPolicyContext, PolicyResult } from "../types.js";
-import { runCustomValidator, type CustomValidationCallback } from "./utils.js";
+import type {
+    InstructionPolicy,
+    InstructionPolicyContext,
+    PolicyResult,
+    ProgramPolicyConfig,
+    CustomValidationCallback,
+} from "../types.js";
+import { runCustomValidator } from "./utils.js";
 
 // Re-export for convenience
 export { TOKEN_PROGRAM_ADDRESS, TokenInstruction };
+
+// Program-specific context type
+export type SplTokenPolicyContext = InstructionPolicyContext<typeof TOKEN_PROGRAM_ADDRESS>;
 
 // Type for a fully validated instruction
 type ValidatedInstruction = Instruction &
@@ -120,18 +129,17 @@ export interface TokenInstructionConfigs {
  * Configuration for the SPL Token Program policy.
  *
  * Each instruction type can be:
- * - Omitted: instruction is DENIED
+ * - Omitted: instruction is implicitly DENIED
+ * - `false`: instruction is explicitly DENIED (self-documenting)
  * - `true`: instruction is ALLOWED with no constraints
  * - Config object: instruction is ALLOWED with constraints
+ * - Config object with customValidator: instruction validated with custom logic
  */
-export interface SplTokenPolicyConfig {
-    /** Per-instruction configuration */
-    instructions: {
-        [K in TokenInstruction]?: TokenInstructionConfigs[K] | boolean;
-    };
-    /** Optional custom validator for additional logic */
-    customValidator?: CustomValidationCallback;
-}
+export type SplTokenPolicyConfig = ProgramPolicyConfig<
+    typeof TOKEN_PROGRAM_ADDRESS,
+    TokenInstruction,
+    TokenInstructionConfigs
+>;
 
 // ============================================================================
 // Policy implementation
@@ -171,35 +179,51 @@ export function createSplTokenPolicy(config: SplTokenPolicyConfig): InstructionP
             assertIsInstructionWithData(ctx.instruction);
             assertIsInstructionWithAccounts(ctx.instruction);
 
-            // After assertions, instruction is now ValidatedInstruction
-            const ix = ctx.instruction as ValidatedInstruction;
+            // After assertions, context is now typed for SPL Token Program
+            const typedCtx = ctx as SplTokenPolicyContext;
+            const ix = typedCtx.instruction as ValidatedInstruction;
 
             // Identify the instruction type
             const ixType = identifyTokenInstruction(ix.data);
             const ixConfig = config.instructions[ixType];
 
-            // Omitted = denied
-            if (ixConfig === undefined) {
-                return `SPL Token: ${TokenInstruction[ixType]} instruction not allowed`;
+            // 1. If undefined or false, deny
+            if (ixConfig === undefined || ixConfig === false) {
+                const reason = ixConfig === false ? "explicitly denied" : "not allowed";
+                return `SPL Token: ${TokenInstruction[ixType]} instruction ${reason}`;
             }
 
-            // true = allow with no constraints
-            if (ixConfig === true) {
-                return runCustomValidator(config.customValidator, ctx);
+            // 2. If true, skip declarative validation
+            let declarativeConfig: InstructionConfig | undefined;
+            let perInstructionValidator: CustomValidationCallback<typeof TOKEN_PROGRAM_ADDRESS> | undefined;
+
+            if (ixConfig !== true) {
+                // Extract customValidator if present
+                if (typeof ixConfig === "object" && "customValidator" in ixConfig) {
+                    const { customValidator, ...config } = ixConfig;
+                    perInstructionValidator = customValidator;
+                    declarativeConfig = config as InstructionConfig;
+                } else {
+                    declarativeConfig = ixConfig;
+                }
             }
 
-            // false should not happen (undefined is the deny case), but handle it
-            if (ixConfig === false) {
-                return `SPL Token: ${TokenInstruction[ixType]} instruction not allowed`;
+            // 2. Handle declarative config
+            if (declarativeConfig) {
+                const validationResult = validateInstruction(ixType, declarativeConfig, ix);
+                if (validationResult !== true) {
+                    return validationResult;
+                }
             }
 
-            // Validate based on instruction type
-            const validationResult = validateInstruction(ixType, ixConfig, ix);
-            if (validationResult !== true) {
-                return validationResult;
+            // 3. Call per-instruction custom validator if defined
+            if (perInstructionValidator) {
+                const result = await perInstructionValidator(typedCtx);
+                if (result !== true) return result;
             }
 
-            return runCustomValidator(config.customValidator, ctx);
+            // 4. Call program-level custom validator if defined
+            return runCustomValidator(config.customValidator, typedCtx);
         },
     };
 }

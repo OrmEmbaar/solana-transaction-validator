@@ -7,11 +7,13 @@ export type {
     GlobalPolicyContext,
     InstructionPolicyContext,
     PolicyResult,
+    CustomValidationCallback,
     GlobalPolicyConfig,
     SimulationConstraints,
     GlobalPolicy,
     InstructionPolicy,
     ProgramPolicy,
+    ProgramPolicyConfig,
 } from "./types.js";
 
 export { SignerRole } from "./types.js";
@@ -54,7 +56,6 @@ export {
     hasPrefix,
     composeValidators,
     runCustomValidator,
-    type CustomValidationCallback,
 } from "./programs/utils.js";
 
 // Custom Program (for programs without @solana-program/* packages)
@@ -70,6 +71,7 @@ export {
     SYSTEM_PROGRAM_ADDRESS,
     SystemInstruction,
     type SystemProgramPolicyConfig,
+    type SystemProgramPolicyContext,
     type SystemInstructionConfigs,
     type TransferSolConfig,
     type CreateAccountConfig,
@@ -83,6 +85,7 @@ export {
     TOKEN_PROGRAM_ADDRESS,
     TokenInstruction,
     type SplTokenPolicyConfig,
+    type SplTokenPolicyContext,
     type TokenInstructionConfigs,
     type TransferConfig as SplTokenTransferConfig,
     type ApproveConfig as SplTokenApproveConfig,
@@ -97,6 +100,7 @@ export {
     TOKEN_2022_PROGRAM_ADDRESS,
     Token2022Instruction,
     type Token2022PolicyConfig,
+    type Token2022PolicyContext,
     type TransferConfig as Token2022TransferConfig,
     type ApproveConfig as Token2022ApproveConfig,
     type MintToConfig as Token2022MintToConfig,
@@ -110,6 +114,7 @@ export {
     COMPUTE_BUDGET_PROGRAM_ADDRESS,
     ComputeBudgetInstruction,
     type ComputeBudgetPolicyConfig,
+    type ComputeBudgetPolicyContext,
     type ComputeBudgetInstructionConfigs,
     type SetComputeUnitLimitConfig,
     type SetComputeUnitPriceConfig,
@@ -121,6 +126,7 @@ export {
     createMemoPolicy,
     MEMO_PROGRAM_ADDRESS,
     type MemoPolicyConfig,
+    type MemoPolicyContext,
     type MemoConfig,
 } from "./programs/memo.js";
 
