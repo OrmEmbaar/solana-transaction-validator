@@ -13,10 +13,12 @@ export function validateSignerRole(role: SignerRole, ctx: GlobalPolicyContext): 
     const isFeePayer = ctx.decompiledMessage.feePayer.address === ctx.signer;
 
     // Determine if signer appears in any instruction accounts (participant)
+    // Note: We check instruction accounts rather than staticAccounts because:
+    // - The fee payer (index 0) can also be a participant if used by instructions
+    // - We want to detect actual usage by instructions, not just presence in account list
+    // - This works because signers cannot be in address lookup tables (v0 transactions)
     const isParticipant = ctx.decompiledMessage.instructions.some((ix) => {
         if (!isInstructionWithAccounts(ix)) return false;
-        // ix.accounts is now guaranteed to be an array of AccountMeta objects
-        // Each AccountMeta has an { address: Address, ...other props }
         return ix.accounts.some((acc) => acc.address === ctx.signer);
     });
 
