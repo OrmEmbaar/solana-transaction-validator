@@ -44,8 +44,9 @@ export interface GlobalPolicyContext extends BasePolicyContext {
  *
  * @template TProgramAddress - The program address type (narrows the instruction)
  */
-export interface InstructionPolicyContext<TProgramAddress extends string = string>
-    extends GlobalPolicyContext {
+export interface InstructionPolicyContext<
+    TProgramAddress extends string = string,
+> extends GlobalPolicyContext {
     /** The specific instruction being validated */
     instruction: Instruction<TProgramAddress>;
 
@@ -140,7 +141,7 @@ export interface ProgramPolicy extends InstructionPolicy {
 
 /**
  * Configuration for a single instruction.
- * 
+ *
  * Uses type discrimination to determine validation mode:
  * - `undefined`: instruction is implicitly DENIED
  * - `false`: instruction is explicitly DENIED (self-documenting)
@@ -171,7 +172,7 @@ export interface ProgramPolicyConfig<
 > {
     /**
      * Per-instruction configuration.
-     * 
+     *
      * Each instruction can be configured as:
      * - Omitted/undefined: instruction is implicitly DENIED
      * - `false`: instruction is explicitly DENIED (self-documenting)
@@ -186,4 +187,3 @@ export interface ProgramPolicyConfig<
     /** Program-level custom validator (runs after instruction-level validation) */
     customValidator?: CustomValidationCallback<TProgramAddress>;
 }
-

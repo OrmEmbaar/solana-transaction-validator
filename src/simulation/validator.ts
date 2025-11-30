@@ -42,4 +42,3 @@ export async function validateSimulation(
 
     return true; // Stub for now
 }
-

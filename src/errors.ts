@@ -38,4 +38,3 @@ export class RemoteSignerError extends Error {
         };
     }
 }
-

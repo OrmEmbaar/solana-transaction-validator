@@ -14,7 +14,10 @@ export function validateTransactionLimits(
     },
     ctx: GlobalPolicyContext,
 ): PolicyResult {
-    if (config.maxInstructions && ctx.decompiledMessage.instructions.length > config.maxInstructions) {
+    if (
+        config.maxInstructions &&
+        ctx.decompiledMessage.instructions.length > config.maxInstructions
+    ) {
         return `Too many instructions: ${ctx.decompiledMessage.instructions.length} > ${config.maxInstructions}`;
     }
 
@@ -24,4 +27,3 @@ export function validateTransactionLimits(
 
     return true;
 }
-

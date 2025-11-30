@@ -149,4 +149,3 @@ describe("runCustomValidator", () => {
         expect(await runCustomValidator(validator, mockCtx)).toBe(true);
     });
 });
-

@@ -132,8 +132,7 @@ export function createComputeBudgetPolicy(config: ComputeBudgetPolicyConfig): In
 
             // 1. Deny: undefined or false
             if (ixConfig === undefined || ixConfig === false) {
-                const reason = ixConfig === false ? "explicitly denied" : "not allowed";
-                return `Compute Budget: ${ComputeBudgetInstruction[ixType]} instruction ${reason}`;
+                return `Compute Budget: ${ComputeBudgetInstruction[ixType]} instruction not allowed`;
             }
 
             // 2. Allow all: true
@@ -220,7 +219,10 @@ function validateSetComputeUnitPrice(
     return true;
 }
 
-function validateRequestHeapFrame(config: RequestHeapFrameConfig, ix: ValidatedInstruction): PolicyResult {
+function validateRequestHeapFrame(
+    config: RequestHeapFrameConfig,
+    ix: ValidatedInstruction,
+): PolicyResult {
     const parsed = parseRequestHeapFrameInstruction(ix);
 
     if (config.maxBytes !== undefined && parsed.data.bytes > config.maxBytes) {

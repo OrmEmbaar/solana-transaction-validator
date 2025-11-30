@@ -1,9 +1,5 @@
 import type { ReadonlyUint8Array } from "@solana/kit";
-import type {
-    InstructionPolicyContext,
-    PolicyResult,
-    CustomValidationCallback,
-} from "../types.js";
+import type { InstructionPolicyContext, PolicyResult, CustomValidationCallback } from "../types.js";
 
 // Re-export for convenience
 export type { CustomValidationCallback };
@@ -57,4 +53,3 @@ export async function runCustomValidator<TProgramAddress extends string = string
     }
     return true;
 }
-

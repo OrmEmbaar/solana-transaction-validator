@@ -118,4 +118,3 @@ describe("PolicyEngine", () => {
         ).rejects.toThrow("Token policy says no");
     });
 });
-

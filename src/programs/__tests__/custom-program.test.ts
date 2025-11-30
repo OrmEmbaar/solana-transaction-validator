@@ -9,10 +9,7 @@ const PROGRAM_ADDRESS = address("11111111111111111111111111111112");
 const ANOTHER_PROGRAM = address("11111111111111111111111111111113");
 const SIGNER_ADDRESS = address("11111111111111111111111111111114");
 
-const createMockContext = (
-    programAddress: Address,
-    data: Uint8Array,
-): InstructionPolicyContext => {
+const createMockContext = (programAddress: Address, data: Uint8Array): InstructionPolicyContext => {
     return {
         signer: SIGNER_ADDRESS,
         transaction: {} as InstructionPolicyContext["transaction"],
@@ -261,7 +258,10 @@ describe("createCustomProgramPolicy", () => {
                 allowedInstructions: [],
             });
 
-            const ctx = createMockContext(PROGRAM_ADDRESS, new Uint8Array([0xab, 0xcd, 0xef, 0x12]));
+            const ctx = createMockContext(
+                PROGRAM_ADDRESS,
+                new Uint8Array([0xab, 0xcd, 0xef, 0x12]),
+            );
             const result = await policy.validate(ctx);
             expect(result).toContain("0xabcdef12");
         });

@@ -1,6 +1,11 @@
 import { type Address, type ReadonlyUint8Array, assertIsInstructionWithData } from "@solana/kit";
 import type { InstructionPolicy, InstructionPolicyContext, PolicyResult } from "../types.js";
-import { arraysEqual, hasPrefix, runCustomValidator, type CustomValidationCallback } from "./utils.js";
+import {
+    arraysEqual,
+    hasPrefix,
+    runCustomValidator,
+    type CustomValidationCallback,
+} from "./utils.js";
 
 /**
  * A rule for matching instruction discriminators.
@@ -89,4 +94,3 @@ export function createCustomProgramPolicy(config: CustomProgramPolicyConfig): In
         },
     };
 }
-

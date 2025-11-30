@@ -115,4 +115,3 @@ function assertAllowed(result: PolicyResult, defaultMessage: string): void {
     const message = typeof result === "string" ? result : defaultMessage;
     throw new RemoteSignerError(SignerErrorCode.POLICY_REJECTED, message);
 }
-
