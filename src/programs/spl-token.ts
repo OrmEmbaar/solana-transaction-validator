@@ -27,7 +27,6 @@ import type {
     InstructionPolicyContext,
     PolicyResult,
     ProgramPolicyConfig,
-    CustomValidationCallback,
 } from "../types.js";
 import { runCustomValidator } from "./utils.js";
 
@@ -132,8 +131,8 @@ export interface TokenInstructionConfigs {
  * - Omitted: instruction is implicitly DENIED
  * - `false`: instruction is explicitly DENIED (self-documenting)
  * - `true`: instruction is ALLOWED with no constraints
- * - Config object: instruction is ALLOWED with constraints
- * - Config object with customValidator: instruction validated with custom logic
+ * - Config object: instruction is ALLOWED with declarative constraints
+ * - Function: instruction is ALLOWED with custom validation logic
  */
 export type SplTokenPolicyConfig = ProgramPolicyConfig<
     typeof TOKEN_PROGRAM_ADDRESS,
@@ -158,15 +157,19 @@ export type SplTokenPolicyConfig = ProgramPolicyConfig<
  * ```typescript
  * const tokenPolicy = createSplTokenPolicy({
  *     instructions: {
+ *         // Declarative: use built-in constraints
  *         [TokenInstruction.Transfer]: {
  *             maxAmount: 1_000_000n,
- *             allowedMints: [USDC_MINT, USDT_MINT],
  *         },
- *         [TokenInstruction.TransferChecked]: {
- *             maxAmount: 1_000_000n,
- *             allowedMints: [USDC_MINT, USDT_MINT],
+ *         // Custom: full control with a function
+ *         [TokenInstruction.TransferChecked]: async (ctx) => {
+ *             // Custom validation logic
+ *             return true;
  *         },
- *         [TokenInstruction.Burn]: true, // Allow burns with no constraints
+ *         // Simple allow
+ *         [TokenInstruction.Burn]: true,
+ *         // Explicit deny
+ *         [TokenInstruction.SetAuthority]: false,
  *     },
  * });
  * ```
@@ -187,42 +190,27 @@ export function createSplTokenPolicy(config: SplTokenPolicyConfig): InstructionP
             const ixType = identifyTokenInstruction(ix.data);
             const ixConfig = config.instructions[ixType];
 
-            // 1. If undefined or false, deny
+            // 1. Deny: undefined or false
             if (ixConfig === undefined || ixConfig === false) {
                 const reason = ixConfig === false ? "explicitly denied" : "not allowed";
                 return `SPL Token: ${TokenInstruction[ixType]} instruction ${reason}`;
             }
 
-            // 2. If true, skip declarative validation
-            let declarativeConfig: InstructionConfig | undefined;
-            let perInstructionValidator: CustomValidationCallback<typeof TOKEN_PROGRAM_ADDRESS> | undefined;
-
-            if (ixConfig !== true) {
-                // Extract customValidator if present
-                if (typeof ixConfig === "object" && "customValidator" in ixConfig) {
-                    const { customValidator, ...config } = ixConfig;
-                    perInstructionValidator = customValidator;
-                    declarativeConfig = config as InstructionConfig;
-                } else {
-                    declarativeConfig = ixConfig;
-                }
+            // 2. Allow all: true
+            if (ixConfig === true) {
+                return runCustomValidator(config.customValidator, typedCtx);
             }
 
-            // 2. Handle declarative config
-            if (declarativeConfig) {
-                const validationResult = validateInstruction(ixType, declarativeConfig, ix);
-                if (validationResult !== true) {
-                    return validationResult;
-                }
-            }
-
-            // 3. Call per-instruction custom validator if defined
-            if (perInstructionValidator) {
-                const result = await perInstructionValidator(typedCtx);
+            // 3. Custom validator: function
+            if (typeof ixConfig === "function") {
+                const result = await ixConfig(typedCtx);
                 if (result !== true) return result;
+                return runCustomValidator(config.customValidator, typedCtx);
             }
 
-            // 4. Call program-level custom validator if defined
+            // 4. Declarative config: object
+            const validationResult = validateInstruction(ixType, ixConfig, ix);
+            if (validationResult !== true) return validationResult;
             return runCustomValidator(config.customValidator, typedCtx);
         },
     };

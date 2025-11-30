@@ -26,7 +26,6 @@ import type {
     InstructionPolicyContext,
     PolicyResult,
     ProgramPolicyConfig,
-    CustomValidationCallback,
 } from "../types.js";
 import { runCustomValidator } from "./utils.js";
 
@@ -107,8 +106,8 @@ export interface SystemInstructionConfigs {
  * - Omitted: instruction is implicitly DENIED
  * - `false`: instruction is explicitly DENIED (self-documenting)
  * - `true`: instruction is ALLOWED with no constraints
- * - Config object: instruction is ALLOWED with constraints
- * - Config object with customValidator: instruction validated with custom logic
+ * - Config object: instruction is ALLOWED with declarative constraints
+ * - Function: instruction is ALLOWED with custom validation logic
  */
 export type SystemProgramPolicyConfig = ProgramPolicyConfig<
     typeof SYSTEM_PROGRAM_ADDRESS,
@@ -133,12 +132,20 @@ export type SystemProgramPolicyConfig = ProgramPolicyConfig<
  * ```typescript
  * const systemPolicy = createSystemProgramPolicy({
  *     instructions: {
+ *         // Declarative: use built-in constraints
  *         [SystemInstruction.TransferSol]: {
  *             maxLamports: 1_000_000_000n, // 1 SOL max
  *             allowedDestinations: [TREASURY_ADDRESS],
  *         },
- *         [SystemInstruction.CreateAccount]: true, // Allow with no constraints
- *         // All other instructions denied (omitted)
+ *         // Custom: full control with a function
+ *         [SystemInstruction.CreateAccount]: async (ctx) => {
+ *             // Custom validation logic
+ *             return true;
+ *         },
+ *         // Simple allow
+ *         [SystemInstruction.AdvanceNonceAccount]: true,
+ *         // Explicit deny
+ *         [SystemInstruction.UpgradeNonceAccount]: false,
  *     },
  * });
  * ```
@@ -159,42 +166,27 @@ export function createSystemProgramPolicy(config: SystemProgramPolicyConfig): In
             const ixType = identifySystemInstruction(ix.data);
             const ixConfig = config.instructions[ixType];
 
-            // 1. If undefined or false, deny
+            // 1. Deny: undefined or false
             if (ixConfig === undefined || ixConfig === false) {
                 const reason = ixConfig === false ? "explicitly denied" : "not allowed";
                 return `System Program: ${SystemInstruction[ixType]} instruction ${reason}`;
             }
 
-            // 2. If true, skip declarative validation
-            let declarativeConfig: InstructionConfig | undefined;
-            let perInstructionValidator: CustomValidationCallback<typeof SYSTEM_PROGRAM_ADDRESS> | undefined;
-
-            if (ixConfig !== true) {
-                // Extract customValidator if present
-                if (typeof ixConfig === "object" && "customValidator" in ixConfig) {
-                    const { customValidator, ...config } = ixConfig;
-                    perInstructionValidator = customValidator;
-                    declarativeConfig = config as InstructionConfig;
-                } else {
-                    declarativeConfig = ixConfig;
-                }
+            // 2. Allow all: true
+            if (ixConfig === true) {
+                return runCustomValidator(config.customValidator, typedCtx);
             }
 
-            // 2. Handle declarative config
-            if (declarativeConfig) {
-                const validationResult = validateInstruction(ixType, declarativeConfig, ix);
-                if (validationResult !== true) {
-                    return validationResult;
-                }
-            }
-
-            // 3. Call per-instruction custom validator if defined
-            if (perInstructionValidator) {
-                const result = await perInstructionValidator(typedCtx);
+            // 3. Custom validator: function
+            if (typeof ixConfig === "function") {
+                const result = await ixConfig(typedCtx);
                 if (result !== true) return result;
+                return runCustomValidator(config.customValidator, typedCtx);
             }
 
-            // 4. Call program-level custom validator if defined
+            // 4. Declarative config: object
+            const validationResult = validateInstruction(ixType, ixConfig, ix);
+            if (validationResult !== true) return validationResult;
             return runCustomValidator(config.customValidator, typedCtx);
         },
     };

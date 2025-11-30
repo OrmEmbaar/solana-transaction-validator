@@ -140,18 +140,22 @@ export interface ProgramPolicy extends InstructionPolicy {
 
 /**
  * Configuration for a single instruction.
- * Can include declarative constraints and/or a custom validator.
+ * 
+ * Uses type discrimination to determine validation mode:
+ * - `undefined`: instruction is implicitly DENIED
+ * - `false`: instruction is explicitly DENIED (self-documenting)
+ * - `true`: instruction is ALLOWED with no validation
+ * - Object (TConfig): instruction is ALLOWED with declarative constraints
+ * - Function (CustomValidationCallback): instruction is ALLOWED with custom validation
  *
  * @template TProgramAddress - The program address literal type
  * @template TConfig - The instruction-specific config type
  */
-export type InstructionConfig<TProgramAddress extends string, TConfig> =
-    | boolean // true = allow, false = deny
-    | TConfig // Allow with declarative constraints
-    | (TConfig & {
-          /** Per-instruction custom validator */
-          customValidator?: CustomValidationCallback<TProgramAddress>;
-      });
+export type InstructionConfigEntry<TProgramAddress extends string, TConfig> =
+    | undefined
+    | boolean
+    | TConfig
+    | CustomValidationCallback<TProgramAddress>;
 
 /**
  * Base configuration for program policies with program-specific typing.
@@ -167,17 +171,19 @@ export interface ProgramPolicyConfig<
 > {
     /**
      * Per-instruction configuration.
+     * 
+     * Each instruction can be configured as:
      * - Omitted/undefined: instruction is implicitly DENIED
      * - `false`: instruction is explicitly DENIED (self-documenting)
      * - `true`: instruction is ALLOWED with no constraints
      * - Config object: instruction is ALLOWED with declarative constraints
-     * - Config with customValidator: instruction is ALLOWED with constraints + custom logic
+     * - Function: instruction is ALLOWED with custom validation logic
      */
     instructions: {
-        [K in TInstruction]?: InstructionConfig<TProgramAddress, TInstructionConfigs[K]>;
+        [K in TInstruction]?: InstructionConfigEntry<TProgramAddress, TInstructionConfigs[K]>;
     };
 
-    /** Program-level custom validator (runs after all per-instruction validation) */
+    /** Program-level custom validator (runs after instruction-level validation) */
     customValidator?: CustomValidationCallback<TProgramAddress>;
 }
 

@@ -8,6 +8,7 @@ export type {
     InstructionPolicyContext,
     PolicyResult,
     CustomValidationCallback,
+    InstructionConfigEntry,
     GlobalPolicyConfig,
     SimulationConstraints,
     GlobalPolicy,

@@ -74,10 +74,10 @@ const createAssignInstruction = (programAddress: Address = PROGRAM_OWNER) => {
 // Helper to create an Allocate instruction
 const createAllocateInstruction = (space: bigint) => {
     return getAllocateInstruction({
-        account: {
+        newAccount: {
             address: SIGNER,
             role: 3,
-        } as unknown as Parameters<typeof getAllocateInstruction>[0]["account"],
+        } as unknown as Parameters<typeof getAllocateInstruction>[0]["newAccount"],
         space,
     });
 };

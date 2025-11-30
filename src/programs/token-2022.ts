@@ -27,6 +27,7 @@ import type {
     InstructionPolicyContext,
     PolicyResult,
     CustomValidationCallback,
+    InstructionConfigEntry,
 } from "../types.js";
 import { runCustomValidator } from "./utils.js";
 
@@ -92,34 +93,34 @@ export type NoConstraintsConfig = Record<string, never>;
 // Main config type
 // ============================================================================
 
+/** Union of all instruction config types */
+type AnyInstructionConfig =
+    | TransferConfig
+    | ApproveConfig
+    | MintToConfig
+    | BurnConfig
+    | SetAuthorityConfig
+    | NoConstraintsConfig;
+
 /**
  * Configuration for the Token-2022 Program policy.
  *
- * Uses a partial record keyed by Token2022Instruction enum.
- * - Omitted = implicitly DENIED
- * - `false` = explicitly DENIED (self-documenting)
- * - `true` = ALLOWED with no constraints
- * - Config object = ALLOWED with constraints
- * - Config object with customValidator = ALLOWED with custom logic
+ * Each instruction type can be:
+ * - Omitted: instruction is implicitly DENIED
+ * - `false`: instruction is explicitly DENIED (self-documenting)
+ * - `true`: instruction is ALLOWED with no constraints
+ * - Config object: instruction is ALLOWED with declarative constraints
+ * - Function: instruction is ALLOWED with custom validation logic
  */
 export interface Token2022PolicyConfig {
     /** Per-instruction configuration. Keyed by Token2022Instruction enum value. */
     instructions: Partial<
         Record<
             Token2022Instruction,
-            | TransferConfig
-            | ApproveConfig
-            | MintToConfig
-            | BurnConfig
-            | SetAuthorityConfig
-            | NoConstraintsConfig
-            | boolean
-            | ((TransferConfig | ApproveConfig | MintToConfig | BurnConfig | SetAuthorityConfig | NoConstraintsConfig) & {
-                  customValidator?: CustomValidationCallback<typeof TOKEN_2022_PROGRAM_ADDRESS>;
-              })
+            InstructionConfigEntry<typeof TOKEN_2022_PROGRAM_ADDRESS, AnyInstructionConfig>
         >
     >;
-    /** Optional custom validator for additional logic */
+    /** Program-level custom validator (runs after instruction-level validation) */
     customValidator?: CustomValidationCallback<typeof TOKEN_2022_PROGRAM_ADDRESS>;
 }
 
@@ -140,11 +141,18 @@ export interface Token2022PolicyConfig {
  * ```typescript
  * const token2022Policy = createToken2022Policy({
  *     instructions: {
+ *         // Declarative: use built-in constraints
  *         [Token2022Instruction.TransferChecked]: {
  *             maxAmount: 1_000_000n,
  *             allowedMints: [MY_TOKEN_MINT],
  *         },
- *         [Token2022Instruction.Transfer]: true,
+ *         // Custom: full control with a function
+ *         [Token2022Instruction.Transfer]: async (ctx) => {
+ *             // Custom validation logic
+ *             return true;
+ *         },
+ *         // Simple allow
+ *         [Token2022Instruction.Burn]: true,
  *     },
  * });
  * ```
@@ -165,44 +173,27 @@ export function createToken2022Policy(config: Token2022PolicyConfig): Instructio
             const ixType = identifyToken2022Instruction(ix.data);
             const ixConfig = config.instructions[ixType];
 
-            // 1. If undefined or false, deny
+            // 1. Deny: undefined or false
             if (ixConfig === undefined || ixConfig === false) {
                 const reason = ixConfig === false ? "explicitly denied" : "not allowed";
                 return `Token-2022: ${Token2022Instruction[ixType]} instruction ${reason}`;
             }
 
-            // 2. If true, skip declarative validation
-            let declarativeConfig: InstructionConfig | undefined;
-            let perInstructionValidator:
-                | CustomValidationCallback<typeof TOKEN_2022_PROGRAM_ADDRESS>
-                | undefined;
-
-            if (ixConfig !== true) {
-                // Extract customValidator if present
-                if (typeof ixConfig === "object" && "customValidator" in ixConfig) {
-                    const { customValidator, ...config } = ixConfig;
-                    perInstructionValidator = customValidator;
-                    declarativeConfig = config as InstructionConfig;
-                } else {
-                    declarativeConfig = ixConfig;
-                }
+            // 2. Allow all: true
+            if (ixConfig === true) {
+                return runCustomValidator(config.customValidator, typedCtx);
             }
 
-            // 2. Handle declarative config
-            if (declarativeConfig) {
-                const validationResult = validateInstruction(ixType, declarativeConfig, ix);
-                if (validationResult !== true) {
-                    return validationResult;
-                }
-            }
-
-            // 3. Call per-instruction custom validator if defined
-            if (perInstructionValidator) {
-                const result = await perInstructionValidator(typedCtx);
+            // 3. Custom validator: function
+            if (typeof ixConfig === "function") {
+                const result = await ixConfig(typedCtx);
                 if (result !== true) return result;
+                return runCustomValidator(config.customValidator, typedCtx);
             }
 
-            // 4. Call program-level custom validator if defined
+            // 4. Declarative config: object
+            const validationResult = validateInstruction(ixType, ixConfig, ix);
+            if (validationResult !== true) return validationResult;
             return runCustomValidator(config.customValidator, typedCtx);
         },
     };
