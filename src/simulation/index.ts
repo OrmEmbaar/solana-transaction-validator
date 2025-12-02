@@ -1,1 +1,2 @@
-export { validateSimulation, type SimulationConstraints } from "./validator.js";
+export { validateSimulation } from "./validator.js";
+export type { SimulationConstraints } from "../types.js";

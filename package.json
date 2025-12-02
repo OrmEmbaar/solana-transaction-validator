@@ -1,21 +1,40 @@
 {
-    "name": "solana-tx-policy",
+    "name": "solana-tx-validator",
     "version": "0.1.0",
     "description": "Declarative transaction policy validation for Solana",
     "type": "module",
     "main": "./dist/index.cjs",
     "module": "./dist/index.js",
     "types": "./dist/index.d.ts",
+    "sideEffects": false,
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",
             "import": "./dist/index.js",
             "require": "./dist/index.cjs"
+        },
+        "./global": {
+            "types": "./dist/global/index.d.ts",
+            "import": "./dist/global/index.js",
+            "require": "./dist/global/index.cjs"
+        },
+        "./programs": {
+            "types": "./dist/programs/index.d.ts",
+            "import": "./dist/programs/index.js",
+            "require": "./dist/programs/index.cjs"
+        },
+        "./simulation": {
+            "types": "./dist/simulation/index.d.ts",
+            "import": "./dist/simulation/index.js",
+            "require": "./dist/simulation/index.cjs"
         }
     },
     "files": [
         "dist"
     ],
+    "engines": {
+        "node": ">=18.0.0"
+    },
     "scripts": {
         "build": "tsup",
         "dev": "tsup --watch",
@@ -27,16 +46,24 @@
         "check-types": "tsc --noEmit",
         "prepublishOnly": "pnpm build"
     },
+    "peerDependencies": {
+        "@solana/kit": "^5.0.0"
+    },
+    "peerDependenciesMeta": {
+        "@solana/kit": {
+            "optional": false
+        }
+    },
     "dependencies": {
-        "@solana/kit": "^5.0.0",
+        "@solana-program/compute-budget": "^0.11.0",
+        "@solana-program/memo": "^0.10.0",
         "@solana-program/system": "^0.10.0",
         "@solana-program/token": "^0.9.0",
-        "@solana-program/token-2022": "^0.6.1",
-        "@solana-program/compute-budget": "^0.11.0",
-        "@solana-program/memo": "^0.10.0"
+        "@solana-program/token-2022": "^0.6.1"
     },
     "devDependencies": {
         "@eslint/js": "^9.39.1",
+        "@solana/kit": "^5.0.0",
         "@types/node": "^24.10.1",
         "eslint": "^9.39.1",
         "eslint-config-prettier": "^10.1.8",
