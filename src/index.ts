@@ -23,7 +23,7 @@ export { SignerRole } from "./types.js";
 // Errors
 // ============================================================================
 
-export { SignerErrorCode, RemoteSignerError, type SignerErrorBody } from "./errors.js";
+export { PolicyValidationError } from "./errors.js";
 
 // ============================================================================
 // Engine
@@ -47,7 +47,6 @@ export {
     type TransactionLimitsConfig,
 } from "./global/transaction-limits.js";
 export { validateSignerAllowlist } from "./global/signer-allowlist.js";
-export { validateAddressLookupTables } from "./global/alt-validation.js";
 export {
     validateTransactionVersion,
     detectTransactionVersion,

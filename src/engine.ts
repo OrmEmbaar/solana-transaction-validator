@@ -13,7 +13,7 @@ import type {
     InstructionPolicyContext,
     PolicyResult,
 } from "./types.js";
-import { RemoteSignerError, SignerErrorCode } from "./errors.js";
+import { PolicyValidationError } from "./errors.js";
 import { validateGlobalPolicy } from "./global/validator.js";
 
 /**
@@ -46,7 +46,7 @@ export interface PolicyEngineConfig {
 
 /**
  * A function that validates a transaction against the configured policies.
- * Throws RemoteSignerError if validation fails.
+ * Throws PolicyValidationError if validation fails.
  */
 export type TransactionValidator = (
     transaction: CompiledTransactionMessage & CompiledTransactionMessageWithLifetime,
@@ -102,8 +102,7 @@ export function createPolicyValidator(config: PolicyEngineConfig): TransactionVa
                 );
             } else {
                 // Unknown program is always denied (strict allowlist)
-                throw new RemoteSignerError(
-                    SignerErrorCode.POLICY_REJECTED,
+                throw new PolicyValidationError(
                     `Instruction ${index} uses unauthorized program ${programId}`,
                 );
             }
@@ -140,24 +139,21 @@ function validateRequiredPrograms(
         if (config.required === true) {
             // Program must be present
             if (!presentInstructions) {
-                throw new RemoteSignerError(
-                    SignerErrorCode.POLICY_REJECTED,
+                throw new PolicyValidationError(
                     `Required program ${programId} is not present in transaction`,
                 );
             }
         } else if (Array.isArray(config.required)) {
             // Program must be present with specific instructions
             if (!presentInstructions) {
-                throw new RemoteSignerError(
-                    SignerErrorCode.POLICY_REJECTED,
+                throw new PolicyValidationError(
                     `Required program ${programId} is not present in transaction`,
                 );
             }
 
             for (const requiredIx of config.required) {
                 if (!presentInstructions.has(requiredIx)) {
-                    throw new RemoteSignerError(
-                        SignerErrorCode.POLICY_REJECTED,
+                    throw new PolicyValidationError(
                         `Required instruction ${requiredIx} for program ${programId} is not present`,
                     );
                 }
@@ -169,5 +165,5 @@ function validateRequiredPrograms(
 function assertAllowed(result: PolicyResult, defaultMessage: string): void {
     if (result === true) return;
     const message = typeof result === "string" ? result : defaultMessage;
-    throw new RemoteSignerError(SignerErrorCode.POLICY_REJECTED, message);
+    throw new PolicyValidationError(message);
 }

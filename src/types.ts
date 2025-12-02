@@ -131,12 +131,6 @@ export interface GlobalPolicyConfig {
     allowedSigners?: Address[];
 
     /**
-     * Whether address lookup tables are allowed.
-     * @default false (secure by default - no hidden accounts)
-     */
-    allowAddressLookupTables?: boolean;
-
-    /**
      * Allowed transaction versions.
      * @default [0] (v0 transactions only - modern standard)
      * @example ['legacy'] - legacy transactions only
