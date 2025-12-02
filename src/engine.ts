@@ -4,6 +4,8 @@ import type {
     CompiledTransactionMessage,
     CompiledTransactionMessageWithLifetime,
     Instruction,
+    Rpc,
+    SolanaRpcApi,
 } from "@solana/kit";
 import type {
     BasePolicyContext,
@@ -12,9 +14,11 @@ import type {
     InstructionPolicy,
     InstructionPolicyContext,
     PolicyResult,
+    SimulationConstraints,
 } from "./types.js";
 import { PolicyValidationError } from "./errors.js";
 import { validateGlobalPolicy } from "./global/validator.js";
+import { validateSimulation } from "./simulation/validator.js";
 
 /**
  * Configuration for a specific program.
@@ -33,6 +37,18 @@ export interface ProgramConfig<TDiscriminator = number | string> {
     required?: boolean | TDiscriminator[];
 }
 
+/**
+ * Configuration for simulation-based validation.
+ * Bundles RPC client with validation constraints.
+ */
+export interface SimulationConfig {
+    /** RPC client for running simulations */
+    rpc: Rpc<SolanaRpcApi>;
+
+    /** Simulation constraints to validate */
+    constraints: SimulationConstraints;
+}
+
 export interface PolicyEngineConfig {
     /** Global constraints applied to all transactions (REQUIRED) */
     global: GlobalPolicyConfig;
@@ -42,6 +58,12 @@ export interface PolicyEngineConfig {
      * Strictly enforces the { policy, required } object structure.
      */
     programs?: Record<Address, ProgramConfig<number | string>>;
+
+    /**
+     * Optional simulation-based validation.
+     * If provided, transactions will be simulated via RPC and validated.
+     */
+    simulation?: SimulationConfig;
 }
 
 /**
@@ -106,6 +128,16 @@ export function createPolicyValidator(config: PolicyEngineConfig): TransactionVa
                     `Instruction ${index} uses unauthorized program ${programId}`,
                 );
             }
+        }
+
+        // 4. Simulation Validation (optional)
+        if (config.simulation) {
+            const simResult = await validateSimulation(
+                config.simulation.constraints,
+                globalCtx,
+                config.simulation.rpc,
+            );
+            assertAllowed(simResult, "Simulation validation failed");
         }
     };
 }

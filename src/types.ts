@@ -143,17 +143,23 @@ export interface GlobalPolicyConfig {
  * These are validated separately from GlobalPolicyConfig.
  */
 export interface SimulationConstraints {
-    /** Maximum SOL outflow in lamports */
-    maxSolOutflowLamports?: bigint;
+    /**
+     * Whether to forbid the signer's account from being closed.
+     * @default false
+     */
+    forbidSignerAccountClosure?: boolean;
 
-    /** Maximum token outflow by mint address */
-    maxTokenOutflowByMint?: Record<Address, bigint>;
+    /**
+     * Require simulation to succeed (no errors).
+     * @default true
+     */
+    requireSuccess?: boolean;
 
-    /** If true, account closures are forbidden */
-    forbidAccountClosure?: boolean;
-
-    /** If true, authority changes are forbidden */
-    forbidAuthorityChanges?: boolean;
+    /**
+     * Maximum compute units consumed.
+     * @default undefined (no limit)
+     */
+    maxComputeUnits?: number;
 }
 
 /**

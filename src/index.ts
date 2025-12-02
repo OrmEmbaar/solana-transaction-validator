@@ -10,11 +10,11 @@ export type {
     CustomValidationCallback,
     InstructionConfigEntry,
     GlobalPolicyConfig,
-    SimulationConstraints,
     GlobalPolicy,
     InstructionPolicy,
     ProgramPolicy,
     ProgramPolicyConfig,
+    SimulationConstraints,
 } from "./types.js";
 
 export { SignerRole } from "./types.js";
@@ -33,6 +33,7 @@ export {
     createPolicyValidator,
     type PolicyEngineConfig,
     type ProgramConfig,
+    type SimulationConfig,
     type TransactionValidator,
 } from "./engine.js";
 
@@ -133,10 +134,7 @@ export {
 } from "./programs/memo.js";
 
 // ============================================================================
-// Simulation (stub)
+// Simulation
 // ============================================================================
 
-export {
-    validateSimulation,
-    type SimulationConstraints as SimulationValidatorConstraints,
-} from "./simulation/validator.js";
+export { validateSimulation } from "./simulation/validator.js";
