@@ -1,4 +1,4 @@
-# solana-tx-validator
+# solana-transaction-validator
 
 Declarative transaction validation for Solana remote signers. Validate untrusted transactions before signing with a type-safe, composable policy engine built for `@solana/kit`.
 
@@ -7,9 +7,9 @@ Declarative transaction validation for Solana remote signers. Validate untrusted
 ## Installation
 
 ```bash
-npm install solana-tx-validator
+npm install solana-transaction-validator
 # or
-pnpm add solana-tx-validator
+pnpm add solana-transaction-validator
 ```
 
 Requires `@solana/kit` as a peer dependency.
@@ -26,7 +26,7 @@ import {
     SystemInstruction,
     ComputeBudgetInstruction,
     ValidationError,
-} from "solana-tx-validator";
+} from "solana-transaction-validator";
 
 const TREASURY = address("Treasury111111111111111111111111111111111");
 
@@ -140,7 +140,7 @@ instructions: {
 ### System Program
 
 ```typescript
-import { createSystemProgramValidator, SystemInstruction } from "solana-tx-validator";
+import { createSystemProgramValidator, SystemInstruction } from "solana-transaction-validator";
 
 createSystemProgramValidator({
     instructions: {
@@ -164,7 +164,7 @@ createSystemProgramValidator({
 ### SPL Token
 
 ```typescript
-import { createSplTokenValidator, TokenInstruction } from "solana-tx-validator";
+import { createSplTokenValidator, TokenInstruction } from "solana-transaction-validator";
 
 createSplTokenValidator({
     instructions: {
@@ -192,7 +192,7 @@ createSplTokenValidator({
 Same API as SPL Token:
 
 ```typescript
-import { createToken2022Validator, Token2022Instruction } from "solana-tx-validator";
+import { createToken2022Validator, Token2022Instruction } from "solana-transaction-validator";
 
 createToken2022Validator({
     instructions: {
@@ -207,7 +207,10 @@ createToken2022Validator({
 ### Compute Budget
 
 ```typescript
-import { createComputeBudgetValidator, ComputeBudgetInstruction } from "solana-tx-validator";
+import {
+    createComputeBudgetValidator,
+    ComputeBudgetInstruction,
+} from "solana-transaction-validator";
 
 createComputeBudgetValidator({
     instructions: {
@@ -230,7 +233,7 @@ createComputeBudgetValidator({
 ### Memo
 
 ```typescript
-import { createMemoValidator, MemoInstruction } from "solana-tx-validator";
+import { createMemoValidator, MemoInstruction } from "solana-transaction-validator";
 
 createMemoValidator({
     instructions: {
@@ -247,7 +250,7 @@ createMemoValidator({
 For programs without official `@solana-program/*` packages, use discriminator-based allowlisting:
 
 ```typescript
-import { createCustomProgramValidator, address } from "solana-tx-validator";
+import { createCustomProgramValidator, address } from "solana-transaction-validator";
 
 // Example: Allow specific instructions from your custom program
 const myProgramValidator = createCustomProgramValidator({
@@ -336,7 +339,7 @@ programs: [
 All validation failures throw `ValidationError`:
 
 ```typescript
-import { ValidationError } from "solana-tx-validator";
+import { ValidationError } from "solana-transaction-validator";
 
 try {
     await validator(transaction, context);
@@ -363,7 +366,7 @@ import type {
     ProgramValidator,
     GlobalPolicyConfig,
     SimulationConstraints,
-} from "solana-tx-validator";
+} from "solana-transaction-validator";
 ```
 
 ## License

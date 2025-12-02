@@ -6,7 +6,7 @@
  *
  * @example
  * ```typescript
- * import { ValidationError } from "solana-tx-validator";
+ * import { ValidationError } from "solana-transaction-validator";
  *
  * try {
  *     await validator(transaction, context);

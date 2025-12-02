@@ -77,7 +77,7 @@ export type TransactionValidator = (
  *
  * @example
  * ```typescript
- * import { createTransactionValidator, SignerRole } from "solana-tx-validator";
+ * import { createTransactionValidator, SignerRole } from "solana-transaction-validator";
  *
  * const validator = createTransactionValidator({
  *     global: {

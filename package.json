@@ -1,7 +1,7 @@
 {
-    "name": "solana-tx-validator",
+    "name": "solana-transaction-validator",
     "version": "0.1.0",
-    "description": "Declarative transaction policy validation for Solana",
+    "description": "Declarative policy engine for validating Solana transactions",
     "type": "module",
     "main": "./dist/index.cjs",
     "module": "./dist/index.js",
@@ -83,6 +83,6 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/your-org/solana-tx-policy"
+        "url": "https://github.com/OrmEmbaar/solana-transaction-validator"
     }
 }
