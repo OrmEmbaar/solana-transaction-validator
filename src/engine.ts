@@ -71,120 +71,134 @@ export type TransactionValidator = (
 export function createTransactionValidator(
     config: TransactionValidatorConfig,
 ): TransactionValidator {
-    // Build internal map from array for efficient lookup
-    const programMap = new Map<Address, ProgramValidator>();
-    for (const validator of config.programs) {
-        if (programMap.has(validator.programAddress)) {
-            throw new Error(`Duplicate program validator for ${validator.programAddress}`);
-        }
-        programMap.set(validator.programAddress, validator);
-    }
+    const programMap = buildProgramMap(config.programs);
 
-    return async function validateTransaction(
-        transaction: CompiledTransactionMessage & CompiledTransactionMessageWithLifetime,
-        baseContext: BaseValidationContext,
-    ): Promise<void> {
-        // Decompile once at the start
-        const decompiledMessage = decompileTransactionMessage(transaction);
+    return async (transaction, baseContext) => {
+        const ctx = buildValidationContext(transaction, baseContext);
 
-        // Construct global context
-        const globalCtx: GlobalValidationContext = {
-            ...baseContext,
-            transaction,
-            decompiledMessage,
-        };
+        validateGlobal(config.global, ctx);
+        validateRequiredPrograms(programMap, ctx.decompiledMessage.instructions);
+        await validateInstructions(programMap, ctx);
 
-        // 1. Validate Global Policy Config
-        const globalResult = validateGlobalPolicy(config.global, globalCtx);
-        assertAllowed(globalResult, "Global policy rejected transaction");
-
-        // 2. Validate Required Programs and Instructions
-        validateRequiredPrograms(programMap, decompiledMessage.instructions);
-
-        // 3. Instruction Validation
-        for (const [index, ix] of decompiledMessage.instructions.entries()) {
-            const programId = ix.programAddress;
-            const validator = programMap.get(programId);
-
-            if (validator) {
-                // Found specific validator for this program
-                const ixCtx: InstructionValidationContext = {
-                    ...globalCtx,
-                    instruction: ix,
-                    instructionIndex: index,
-                };
-                const result = await validator.validate(ixCtx);
-                assertAllowed(
-                    result,
-                    `Validator for program ${programId} rejected instruction ${index}`,
-                );
-            } else {
-                // Unknown program is always denied (strict allowlist)
-                throw new ValidationError(
-                    `Instruction ${index} uses unauthorized program ${programId}`,
-                );
-            }
-        }
-
-        // 4. Simulation Validation (optional)
         if (config.simulation) {
-            const simResult = await validateSimulation(
-                config.simulation.constraints,
-                globalCtx,
-                config.simulation.rpc,
-            );
-            assertAllowed(simResult, "Simulation validation failed");
+            await runSimulation(config.simulation, ctx);
         }
     };
 }
 
-/**
- * Validates that required programs and instructions are present in the transaction.
- */
+function buildProgramMap(programs: ProgramValidator[]): Map<Address, ProgramValidator> {
+    const map = new Map<Address, ProgramValidator>();
+
+    for (const validator of programs) {
+        if (map.has(validator.programAddress)) {
+            throw new Error(`Duplicate program validator for ${validator.programAddress}`);
+        }
+        map.set(validator.programAddress, validator);
+    }
+
+    return map;
+}
+
+function buildValidationContext(
+    transaction: CompiledTransactionMessage & CompiledTransactionMessageWithLifetime,
+    baseContext: BaseValidationContext,
+): GlobalValidationContext {
+    return {
+        ...baseContext,
+        transaction,
+        decompiledMessage: decompileTransactionMessage(transaction),
+    };
+}
+
+function validateGlobal(config: GlobalPolicyConfig, ctx: GlobalValidationContext): void {
+    const result = validateGlobalPolicy(config, ctx);
+    assertAllowed(result, "Global policy rejected transaction");
+}
+
 function validateRequiredPrograms(
     programMap: Map<Address, ProgramValidator>,
     instructions: readonly Instruction[],
 ): void {
-    // Build a map of program -> instruction discriminators present
-    const programInstructions = new Map<Address, Set<number | string>>();
+    const presentPrograms = buildProgramPresenceMap(instructions);
+
+    for (const [programId, validator] of programMap) {
+        if (!validator.required) continue;
+        assertProgramRequirementsMet(programId, validator.required, presentPrograms);
+    }
+}
+
+async function validateInstructions(
+    programMap: Map<Address, ProgramValidator>,
+    ctx: GlobalValidationContext,
+): Promise<void> {
+    for (const [index, ix] of ctx.decompiledMessage.instructions.entries()) {
+        const validator = programMap.get(ix.programAddress);
+
+        if (!validator) {
+            throw new ValidationError(
+                `Instruction ${index} uses unauthorized program ${ix.programAddress}`,
+            );
+        }
+
+        const ixCtx: InstructionValidationContext = {
+            ...ctx,
+            instruction: ix,
+            instructionIndex: index,
+        };
+
+        const result = await validator.validate(ixCtx);
+        assertAllowed(
+            result,
+            `Validator for program ${ix.programAddress} rejected instruction ${index}`,
+        );
+    }
+}
+
+async function runSimulation(
+    config: SimulationConfig,
+    ctx: GlobalValidationContext,
+): Promise<void> {
+    const result = await validateSimulation(config.constraints, ctx, config.rpc);
+    assertAllowed(result, "Simulation validation failed");
+}
+
+function buildProgramPresenceMap(
+    instructions: readonly Instruction[],
+): Map<Address, Set<number | string>> {
+    const map = new Map<Address, Set<number | string>>();
 
     for (const ix of instructions) {
-        if (!programInstructions.has(ix.programAddress)) {
-            programInstructions.set(ix.programAddress, new Set());
+        let discriminators = map.get(ix.programAddress);
+        if (!discriminators) {
+            discriminators = new Set();
+            map.set(ix.programAddress, discriminators);
         }
-        // Extract discriminator (first byte of instruction data)
+
         if (ix.data && ix.data.length > 0) {
-            programInstructions.get(ix.programAddress)!.add(ix.data[0]);
+            discriminators.add(ix.data[0]);
         }
     }
 
-    // Check each program validator for requirements
-    for (const [programId, validator] of programMap) {
-        if (!validator.required) continue;
+    return map;
+}
 
-        const presentInstructions = programInstructions.get(programId);
+function assertProgramRequirementsMet(
+    programId: Address,
+    required: true | (number | string)[],
+    presentPrograms: Map<Address, Set<number | string>>,
+): void {
+    const presentInstructions = presentPrograms.get(programId);
 
-        if (validator.required === true) {
-            // Program must be present
-            if (!presentInstructions) {
+    if (!presentInstructions) {
+        throw new ValidationError(`Required program ${programId} is not present in transaction`);
+    }
+
+    if (Array.isArray(required)) {
+        for (const requiredIx of required) {
+            if (!presentInstructions.has(requiredIx)) {
                 throw new ValidationError(
-                    `Required program ${programId} is not present in transaction`,
+                    `Required instruction ${requiredIx} for program ${programId} is not present`,
                 );
-            }
-        } else if (Array.isArray(validator.required)) {
-            // Program must be present with specific instructions
-            if (!presentInstructions) {
-                throw new ValidationError(
-                    `Required program ${programId} is not present in transaction`,
-                );
-            }
-
-            for (const requiredIx of validator.required) {
-                if (!presentInstructions.has(requiredIx)) {
-                    throw new ValidationError(
-                        `Required instruction ${requiredIx} for program ${programId} is not present`,
-                    );
-                }
             }
         }
     }
@@ -192,6 +206,5 @@ function validateRequiredPrograms(
 
 function assertAllowed(result: ValidationResult, defaultMessage: string): void {
     if (result === true) return;
-    const message = typeof result === "string" ? result : defaultMessage;
-    throw new ValidationError(message);
+    throw new ValidationError(typeof result === "string" ? result : defaultMessage);
 }
