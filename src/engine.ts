@@ -11,31 +11,14 @@ import type {
     BasePolicyContext,
     GlobalPolicyConfig,
     GlobalPolicyContext,
-    InstructionPolicy,
     InstructionPolicyContext,
     PolicyResult,
+    ProgramPolicy,
     SimulationConstraints,
 } from "./types.js";
 import { PolicyValidationError } from "./errors.js";
 import { validateGlobalPolicy } from "./global/validator.js";
 import { validateSimulation } from "./simulation/validator.js";
-
-/**
- * Configuration for a specific program.
- * @template TDiscriminator - The instruction discriminator type (defaults to number | string)
- */
-export interface ProgramConfig<TDiscriminator = number | string> {
-    /** The policy implementation for this program */
-    policy: InstructionPolicy;
-
-    /**
-     * Requirements for this program in the transaction.
-     * - `true`: Program MUST be present in the transaction.
-     * - `TDiscriminator[]`: Program MUST be present AND contain these instruction types.
-     * - `false` / `undefined`: Program is optional (policy runs only if present).
-     */
-    required?: boolean | TDiscriminator[];
-}
 
 /**
  * Configuration for simulation-based validation.
@@ -54,10 +37,11 @@ export interface PolicyEngineConfig {
     global: GlobalPolicyConfig;
 
     /**
-     * Map of Program ID -> Program Configuration.
-     * Strictly enforces the { policy, required } object structure.
+     * Array of program policies to enforce.
+     * Each policy is self-contained with its program address and validation logic.
+     * Programs not in this list are denied by default (strict allowlist).
      */
-    programs?: Record<Address, ProgramConfig<number | string>>;
+    programs?: ProgramPolicy[];
 
     /**
      * Optional simulation-based validation.
@@ -82,7 +66,14 @@ export type TransactionValidator = (
  * @returns A validation function that can be reused for multiple requests
  */
 export function createPolicyValidator(config: PolicyEngineConfig): TransactionValidator {
-    const programConfigs = config.programs ?? {};
+    // Build internal map from array for efficient lookup
+    const programMap = new Map<Address, ProgramPolicy>();
+    for (const policy of config.programs ?? []) {
+        if (programMap.has(policy.programAddress)) {
+            throw new Error(`Duplicate program policy for ${policy.programAddress}`);
+        }
+        programMap.set(policy.programAddress, policy);
+    }
 
     return async function validateTransaction(
         transaction: CompiledTransactionMessage & CompiledTransactionMessageWithLifetime,
@@ -103,21 +94,21 @@ export function createPolicyValidator(config: PolicyEngineConfig): TransactionVa
         assertAllowed(globalResult, "Global policy rejected transaction");
 
         // 2. Validate Required Programs and Instructions
-        validateRequiredPrograms(programConfigs, decompiledMessage.instructions);
+        validateRequiredPrograms(programMap, decompiledMessage.instructions);
 
         // 3. Instruction Policies
         for (const [index, ix] of decompiledMessage.instructions.entries()) {
             const programId = ix.programAddress;
-            const programConfig = programConfigs[programId];
+            const policy = programMap.get(programId);
 
-            if (programConfig) {
+            if (policy) {
                 // Found specific policy for this program
                 const ixCtx: InstructionPolicyContext = {
                     ...globalCtx,
                     instruction: ix,
                     instructionIndex: index,
                 };
-                const result = await programConfig.policy.validate(ixCtx);
+                const result = await policy.validate(ixCtx);
                 assertAllowed(
                     result,
                     `Policy for program ${programId} rejected instruction ${index}`,
@@ -146,7 +137,7 @@ export function createPolicyValidator(config: PolicyEngineConfig): TransactionVa
  * Validates that required programs and instructions are present in the transaction.
  */
 function validateRequiredPrograms(
-    programConfigs: Record<Address, ProgramConfig<number | string>>,
+    programMap: Map<Address, ProgramPolicy>,
     instructions: readonly Instruction[],
 ): void {
     // Build a map of program -> instruction discriminators present
@@ -162,20 +153,20 @@ function validateRequiredPrograms(
         }
     }
 
-    // Check each program config for requirements
-    for (const [programId, config] of Object.entries(programConfigs)) {
-        if (!config.required) continue;
+    // Check each program policy for requirements
+    for (const [programId, policy] of programMap) {
+        if (!policy.required) continue;
 
-        const presentInstructions = programInstructions.get(programId as Address);
+        const presentInstructions = programInstructions.get(programId);
 
-        if (config.required === true) {
+        if (policy.required === true) {
             // Program must be present
             if (!presentInstructions) {
                 throw new PolicyValidationError(
                     `Required program ${programId} is not present in transaction`,
                 );
             }
-        } else if (Array.isArray(config.required)) {
+        } else if (Array.isArray(policy.required)) {
             // Program must be present with specific instructions
             if (!presentInstructions) {
                 throw new PolicyValidationError(
@@ -183,7 +174,7 @@ function validateRequiredPrograms(
                 );
             }
 
-            for (const requiredIx of config.required) {
+            for (const requiredIx of policy.required) {
                 if (!presentInstructions.has(requiredIx)) {
                     throw new PolicyValidationError(
                         `Required instruction ${requiredIx} for program ${programId} is not present`,

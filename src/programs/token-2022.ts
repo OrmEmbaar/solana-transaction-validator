@@ -23,9 +23,9 @@ import {
     parseSetAuthorityInstruction,
 } from "@solana-program/token-2022";
 import type {
-    InstructionPolicy,
     InstructionPolicyContext,
     PolicyResult,
+    ProgramPolicy,
     CustomValidationCallback,
     InstructionConfigEntry,
 } from "../types.js";
@@ -122,6 +122,13 @@ export interface Token2022PolicyConfig {
     >;
     /** Program-level custom validator (runs after instruction-level validation) */
     customValidator?: CustomValidationCallback<typeof TOKEN_2022_PROGRAM_ADDRESS>;
+    /**
+     * Requirements for this program in the transaction.
+     * - `true`: Program MUST be present in the transaction.
+     * - `Token2022Instruction[]`: Program MUST be present AND contain these instruction types.
+     * - `undefined`: Program is optional (policy runs only if present).
+     */
+    required?: boolean | Token2022Instruction[];
 }
 
 // ============================================================================
@@ -135,7 +142,7 @@ export interface Token2022PolicyConfig {
  * transfer fees, confidential transfers, and more.
  *
  * @param config - The Token-2022 policy configuration
- * @returns An InstructionPolicy that validates Token-2022 instructions
+ * @returns A ProgramPolicy that validates Token-2022 instructions
  *
  * @example
  * ```typescript
@@ -154,11 +161,14 @@ export interface Token2022PolicyConfig {
  *         // Simple allow
  *         [Token2022Instruction.Burn]: true,
  *     },
+ *     required: true, // This program must be present in the transaction
  * });
  * ```
  */
-export function createToken2022Policy(config: Token2022PolicyConfig): InstructionPolicy {
+export function createToken2022Policy(config: Token2022PolicyConfig): ProgramPolicy {
     return {
+        programAddress: TOKEN_2022_PROGRAM_ADDRESS,
+        required: config.required,
         async validate(ctx: InstructionPolicyContext): Promise<PolicyResult> {
             // Assert this is a valid Token-2022 Program instruction with data and accounts
             assertIsInstructionForProgram(ctx.instruction, TOKEN_2022_PROGRAM_ADDRESS);

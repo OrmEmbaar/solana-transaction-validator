@@ -182,6 +182,14 @@ export interface InstructionPolicy {
 export interface ProgramPolicy extends InstructionPolicy {
     /** The program ID this policy applies to */
     programAddress: Address;
+
+    /**
+     * Requirements for this program in the transaction.
+     * - `true`: Program MUST be present in the transaction.
+     * - Array: Program MUST be present AND contain these instruction discriminators.
+     * - `undefined`: Program is optional (policy runs only if present).
+     */
+    required?: boolean | (number | string)[];
 }
 
 /**

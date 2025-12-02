@@ -32,7 +32,6 @@ export { PolicyValidationError } from "./errors.js";
 export {
     createPolicyValidator,
     type PolicyEngineConfig,
-    type ProgramConfig,
     type SimulationConfig,
     type TransactionValidator,
 } from "./engine.js";
@@ -128,8 +127,10 @@ export {
 export {
     createMemoPolicy,
     MEMO_PROGRAM_ADDRESS,
+    MemoInstruction,
     type MemoPolicyConfig,
     type MemoPolicyContext,
+    type MemoInstructionConfigs,
     type MemoConfig,
 } from "./programs/memo.js";
 

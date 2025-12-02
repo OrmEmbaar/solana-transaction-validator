@@ -13,9 +13,9 @@ import {
     parseRequestHeapFrameInstruction,
 } from "@solana-program/compute-budget";
 import type {
-    InstructionPolicy,
     InstructionPolicyContext,
     PolicyResult,
+    ProgramPolicy,
     ProgramPolicyConfig,
 } from "../types.js";
 import { runCustomValidator } from "./utils.js";
@@ -79,11 +79,19 @@ export interface ComputeBudgetInstructionConfigs {
  * - Config object: instruction is ALLOWED with declarative constraints
  * - Function: instruction is ALLOWED with custom validation logic
  */
-export type ComputeBudgetPolicyConfig = ProgramPolicyConfig<
+export interface ComputeBudgetPolicyConfig extends ProgramPolicyConfig<
     typeof COMPUTE_BUDGET_PROGRAM_ADDRESS,
     ComputeBudgetInstruction,
     ComputeBudgetInstructionConfigs
->;
+> {
+    /**
+     * Requirements for this program in the transaction.
+     * - `true`: Program MUST be present in the transaction.
+     * - `ComputeBudgetInstruction[]`: Program MUST be present AND contain these instruction types.
+     * - `undefined`: Program is optional (policy runs only if present).
+     */
+    required?: boolean | ComputeBudgetInstruction[];
+}
 
 // ============================================================================
 // Policy implementation
@@ -96,7 +104,7 @@ export type ComputeBudgetPolicyConfig = ProgramPolicyConfig<
  * identification and parsing.
  *
  * @param config - The Compute Budget policy configuration
- * @returns An InstructionPolicy that validates Compute Budget instructions
+ * @returns A ProgramPolicy that validates Compute Budget instructions
  *
  * @example
  * ```typescript
@@ -112,11 +120,14 @@ export type ComputeBudgetPolicyConfig = ProgramPolicyConfig<
  *             return true;
  *         },
  *     },
+ *     required: true, // This program must be present in the transaction
  * });
  * ```
  */
-export function createComputeBudgetPolicy(config: ComputeBudgetPolicyConfig): InstructionPolicy {
+export function createComputeBudgetPolicy(config: ComputeBudgetPolicyConfig): ProgramPolicy {
     return {
+        programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS,
+        required: config.required,
         async validate(ctx: InstructionPolicyContext): Promise<PolicyResult> {
             // Assert this is a valid Compute Budget Program instruction with data
             assertIsInstructionForProgram(ctx.instruction, COMPUTE_BUDGET_PROGRAM_ADDRESS);

@@ -22,9 +22,9 @@ import {
     parseTransferSolWithSeedInstruction,
 } from "@solana-program/system";
 import type {
-    InstructionPolicy,
     InstructionPolicyContext,
     PolicyResult,
+    ProgramPolicy,
     ProgramPolicyConfig,
 } from "../types.js";
 import { runCustomValidator } from "./utils.js";
@@ -109,11 +109,19 @@ export interface SystemInstructionConfigs {
  * - Config object: instruction is ALLOWED with declarative constraints
  * - Function: instruction is ALLOWED with custom validation logic
  */
-export type SystemProgramPolicyConfig = ProgramPolicyConfig<
+export interface SystemProgramPolicyConfig extends ProgramPolicyConfig<
     typeof SYSTEM_PROGRAM_ADDRESS,
     SystemInstruction,
     SystemInstructionConfigs
->;
+> {
+    /**
+     * Requirements for this program in the transaction.
+     * - `true`: Program MUST be present in the transaction.
+     * - `SystemInstruction[]`: Program MUST be present AND contain these instruction types.
+     * - `undefined`: Program is optional (policy runs only if present).
+     */
+    required?: boolean | SystemInstruction[];
+}
 
 // ============================================================================
 // Policy implementation
@@ -126,7 +134,7 @@ export type SystemProgramPolicyConfig = ProgramPolicyConfig<
  * and parsing, ensuring accurate discriminator matching and data extraction.
  *
  * @param config - The System Program policy configuration
- * @returns An InstructionPolicy that validates System Program instructions
+ * @returns A ProgramPolicy that validates System Program instructions
  *
  * @example
  * ```typescript
@@ -147,11 +155,14 @@ export type SystemProgramPolicyConfig = ProgramPolicyConfig<
  *         // Explicit deny
  *         [SystemInstruction.UpgradeNonceAccount]: false,
  *     },
+ *     required: true, // This program must be present in the transaction
  * });
  * ```
  */
-export function createSystemProgramPolicy(config: SystemProgramPolicyConfig): InstructionPolicy {
+export function createSystemProgramPolicy(config: SystemProgramPolicyConfig): ProgramPolicy {
     return {
+        programAddress: SYSTEM_PROGRAM_ADDRESS,
+        required: config.required,
         async validate(ctx: InstructionPolicyContext): Promise<PolicyResult> {
             // Assert this is a valid System Program instruction with data and accounts
             assertIsInstructionForProgram(ctx.instruction, SYSTEM_PROGRAM_ADDRESS);

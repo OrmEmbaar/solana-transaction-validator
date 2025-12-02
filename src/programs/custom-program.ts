@@ -1,5 +1,5 @@
 import { type Address, type ReadonlyUint8Array, assertIsInstructionWithData } from "@solana/kit";
-import type { InstructionPolicy, InstructionPolicyContext, PolicyResult } from "../types.js";
+import type { InstructionPolicyContext, PolicyResult, ProgramPolicy } from "../types.js";
 import {
     arraysEqual,
     hasPrefix,
@@ -31,6 +31,13 @@ export interface CustomProgramPolicyConfig {
 
     /** Optional callback for additional validation after discriminator check */
     customValidator?: CustomValidationCallback;
+
+    /**
+     * Requirements for this program in the transaction.
+     * - `true`: Program MUST be present in the transaction.
+     * - `undefined`: Program is optional (policy runs only if present).
+     */
+    required?: boolean;
 }
 
 /**
@@ -42,7 +49,7 @@ export interface CustomProgramPolicyConfig {
  * - Quick prototyping without needing to decode instruction data
  *
  * @param config - The custom program policy configuration
- * @returns An InstructionPolicy that validates instructions against the allowlist
+ * @returns A ProgramPolicy that validates instructions against the allowlist
  *
  * @example
  * ```typescript
@@ -56,11 +63,14 @@ export interface CustomProgramPolicyConfig {
  *         // Additional validation logic
  *         return true;
  *     },
+ *     required: true, // This program must be present in the transaction
  * });
  * ```
  */
-export function createCustomProgramPolicy(config: CustomProgramPolicyConfig): InstructionPolicy {
+export function createCustomProgramPolicy(config: CustomProgramPolicyConfig): ProgramPolicy {
     return {
+        programAddress: config.programAddress,
+        required: config.required,
         async validate(ctx: InstructionPolicyContext): Promise<PolicyResult> {
             // 1. Verify program address matches (defensive check)
             if (ctx.instruction.programAddress !== config.programAddress) {

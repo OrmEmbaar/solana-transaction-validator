@@ -1,4 +1,4 @@
-# solana-tx-policy
+# solana-tx-validator
 
 Declarative transaction policy validation for Solana remote signers. Define what transactions your keys are allowed to sign using a type-safe, composable policy engine.
 
@@ -14,9 +14,9 @@ Declarative transaction policy validation for Solana remote signers. Define what
 ## Installation
 
 ```bash
-npm install solana-tx-policy
+npm install solana-tx-validator
 # or
-pnpm add solana-tx-policy
+pnpm add solana-tx-validator
 ```
 
 **Peer dependencies:** This package requires `@solana/kit` to be installed in your project.
@@ -32,9 +32,7 @@ import {
     SignerRole,
     SystemInstruction,
     ComputeBudgetInstruction,
-    SYSTEM_PROGRAM_ADDRESS,
-    COMPUTE_BUDGET_PROGRAM_ADDRESS,
-} from "solana-tx-policy";
+} from "solana-tx-validator";
 
 // Define your policy
 const validator = createPolicyValidator({
@@ -45,33 +43,29 @@ const validator = createPolicyValidator({
         maxSignatures: 3,
     },
 
-    // Program-specific policies
-    programs: {
-        [SYSTEM_PROGRAM_ADDRESS]: {
-            policy: createSystemProgramPolicy({
-                instructions: {
-                    // Allow transfers up to 1 SOL to specific addresses
-                    [SystemInstruction.TransferSol]: {
-                        maxLamports: 1_000_000_000n,
-                        allowedDestinations: [address("Treasury111111111111111111111111111111111")],
-                    },
-                    // Explicitly deny account creation
-                    [SystemInstruction.CreateAccount]: false,
+    // Program-specific policies (array of self-contained policies)
+    programs: [
+        createSystemProgramPolicy({
+            instructions: {
+                // Allow transfers up to 1 SOL to specific addresses
+                [SystemInstruction.TransferSol]: {
+                    maxLamports: 1_000_000_000n,
+                    allowedDestinations: [address("Treasury111111111111111111111111111111111")],
                 },
-            }),
-        },
+                // Explicitly deny account creation
+                [SystemInstruction.CreateAccount]: false,
+            },
+        }),
 
-        [COMPUTE_BUDGET_PROGRAM_ADDRESS]: {
-            policy: createComputeBudgetPolicy({
-                instructions: {
-                    [ComputeBudgetInstruction.SetComputeUnitLimit]: true,
-                    [ComputeBudgetInstruction.SetComputeUnitPrice]: {
-                        maxMicroLamports: 100_000n,
-                    },
+        createComputeBudgetPolicy({
+            instructions: {
+                [ComputeBudgetInstruction.SetComputeUnitLimit]: true,
+                [ComputeBudgetInstruction.SetComputeUnitPrice]: {
+                    maxMicroLamportsPerCu: 100_000n,
                 },
-            }),
-        },
-    },
+            },
+        }),
+    ],
 });
 
 // Validate a transaction
@@ -96,9 +90,9 @@ The `createPolicyValidator` function creates a reusable validator that enforces 
 
 ```typescript
 const validator = createPolicyValidator({
-    global: GlobalPolicyConfig,      // Required: global constraints
-    programs?: ProgramConfigs,       // Optional: per-program policies
-    simulation?: SimulationConfig,   // Optional: RPC-based validation
+    global: GlobalPolicyConfig,    // Required: global constraints
+    programs?: ProgramPolicy[],    // Optional: array of program policies
+    simulation?: SimulationConfig, // Optional: RPC-based validation
 });
 ```
 
@@ -157,20 +151,26 @@ instructions: {
 
 ### Required Programs
 
-Mark programs or specific instructions as required:
+Mark programs or specific instructions as required by adding `required` to the policy config:
 
 ```typescript
-programs: {
-    [COMPUTE_BUDGET_PROGRAM_ADDRESS]: {
-        policy: computeBudgetPolicy,
-        required: true,  // Program must be present
-    },
+programs: [
+    // Program must be present in the transaction
+    createComputeBudgetPolicy({
+        instructions: {
+            /* ... */
+        },
+        required: true,
+    }),
 
-    [SYSTEM_PROGRAM_ADDRESS]: {
-        policy: systemPolicy,
-        required: [SystemInstruction.TransferSol],  // This instruction must be present
-    },
-}
+    // Specific instructions must be present
+    createSystemProgramPolicy({
+        instructions: {
+            /* ... */
+        },
+        required: [SystemInstruction.TransferSol],
+    }),
+];
 ```
 
 ## Built-in Program Policies
@@ -178,7 +178,7 @@ programs: {
 ### System Program
 
 ```typescript
-import { createSystemProgramPolicy, SystemInstruction } from "solana-tx-policy";
+import { createSystemProgramPolicy, SystemInstruction } from "solana-tx-validator";
 
 createSystemProgramPolicy({
     instructions: {
@@ -193,14 +193,15 @@ createSystemProgramPolicy({
         },
         // ... other instructions
     },
+    required?: boolean | SystemInstruction[],
 });
 ```
 
 ### SPL Token & Token-2022
 
 ```typescript
-import { createSplTokenPolicy, TokenInstruction } from "solana-tx-policy";
-import { createToken2022Policy, Token2022Instruction } from "solana-tx-policy";
+import { createSplTokenPolicy, TokenInstruction } from "solana-tx-validator";
+import { createToken2022Policy, Token2022Instruction } from "solana-tx-validator";
 
 createSplTokenPolicy({
     instructions: {
@@ -218,13 +219,14 @@ createSplTokenPolicy({
         },
         // ... other instructions
     },
+    required?: boolean | TokenInstruction[],
 });
 ```
 
 ### Compute Budget
 
 ```typescript
-import { createComputeBudgetPolicy, ComputeBudgetInstruction } from "solana-tx-policy";
+import { createComputeBudgetPolicy, ComputeBudgetInstruction } from "solana-tx-validator";
 
 createComputeBudgetPolicy({
     instructions: {
@@ -232,27 +234,29 @@ createComputeBudgetPolicy({
             maxUnits?: number,
         },
         [ComputeBudgetInstruction.SetComputeUnitPrice]: {
-            maxMicroLamports?: bigint,
+            maxMicroLamportsPerCu?: bigint,
         },
         [ComputeBudgetInstruction.RequestHeapFrame]: {
             maxBytes?: number,
         },
     },
+    required?: boolean | ComputeBudgetInstruction[],
 });
 ```
 
 ### Memo
 
 ```typescript
-import { createMemoPolicy } from "solana-tx-policy";
+import { createMemoPolicy, MemoInstruction } from "solana-tx-validator";
 
 createMemoPolicy({
     instructions: {
-        memo: {
+        [MemoInstruction.Memo]: {
             maxLength?: number,
-            pattern?: RegExp,
+            requiredPrefix?: string,
         },
     },
+    required?: boolean,
 });
 ```
 
@@ -261,7 +265,7 @@ createMemoPolicy({
 For programs without official `@solana-program/*` packages:
 
 ```typescript
-import { createCustomProgramPolicy } from "solana-tx-policy";
+import { createCustomProgramPolicy } from "solana-tx-validator";
 
 createCustomProgramPolicy({
     programAddress: address("YourProgram111111111111111111111111111111"),
@@ -273,6 +277,7 @@ createCustomProgramPolicy({
         // Additional validation
         return true;
     },
+    required?: boolean,
 });
 ```
 
@@ -285,9 +290,9 @@ import { createSolanaRpc } from "@solana/kit";
 
 const validator = createPolicyValidator({
     global: { signerRole: SignerRole.Any },
-    programs: {
+    programs: [
         /* ... */
-    },
+    ],
     simulation: {
         rpc: createSolanaRpc("https://api.mainnet-beta.solana.com"),
         constraints: {
@@ -306,7 +311,7 @@ const validator = createPolicyValidator({
 All validation failures throw `PolicyValidationError`:
 
 ```typescript
-import { PolicyValidationError } from "solana-tx-policy";
+import { PolicyValidationError } from "solana-tx-validator";
 
 try {
     await validator(transaction, context);
@@ -332,7 +337,7 @@ import type {
     CustomValidationCallback,
     InstructionPolicy,
     ProgramPolicy,
-} from "solana-tx-policy";
+} from "solana-tx-validator";
 ```
 
 ## License

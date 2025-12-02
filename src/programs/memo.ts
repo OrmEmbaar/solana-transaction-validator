@@ -6,11 +6,10 @@ import {
 } from "@solana/kit";
 import { MEMO_PROGRAM_ADDRESS } from "@solana-program/memo";
 import type {
-    InstructionPolicy,
     InstructionPolicyContext,
     PolicyResult,
-    CustomValidationCallback,
-    InstructionConfigEntry,
+    ProgramPolicy,
+    ProgramPolicyConfig,
 } from "../types.js";
 import { runCustomValidator } from "./utils.js";
 
@@ -24,6 +23,19 @@ export type MemoPolicyContext = InstructionPolicyContext<typeof MEMO_PROGRAM_ADD
 type ValidatedInstruction = Instruction & InstructionWithData<Uint8Array>;
 
 // ============================================================================
+// Instruction types
+// ============================================================================
+
+/**
+ * Memo program instruction types.
+ * The Memo program has a single instruction type.
+ */
+export enum MemoInstruction {
+    /** Log a UTF-8 string memo in the transaction */
+    Memo = 0,
+}
+
+// ============================================================================
 // Config types
 // ============================================================================
 
@@ -35,23 +47,36 @@ export interface MemoConfig {
     requiredPrefix?: string;
 }
 
+/** Map instruction types to their config types */
+export interface MemoInstructionConfigs {
+    [MemoInstruction.Memo]: MemoConfig;
+}
+
+// ============================================================================
+// Main config type
+// ============================================================================
+
 /**
  * Configuration for the Memo Program policy.
  *
- * The Memo program has a single instruction type (memo), so the config
- * is simpler than other program policies.
- *
- * The `allow` field can be:
- * - `false`: memos are DENIED
- * - `true`: memos are ALLOWED with no constraints
- * - Config object: memos are ALLOWED with declarative constraints
- * - Function: memos are ALLOWED with custom validation logic
+ * Each instruction type can be:
+ * - Omitted: instruction is implicitly DENIED
+ * - `false`: instruction is explicitly DENIED (self-documenting)
+ * - `true`: instruction is ALLOWED with no constraints
+ * - Config object: instruction is ALLOWED with declarative constraints
+ * - Function: instruction is ALLOWED with custom validation logic
  */
-export interface MemoPolicyConfig {
-    /** Allow memo instructions */
-    allow: InstructionConfigEntry<typeof MEMO_PROGRAM_ADDRESS, MemoConfig>;
-    /** Program-level custom validator (runs after instruction-level validation) */
-    customValidator?: CustomValidationCallback<typeof MEMO_PROGRAM_ADDRESS>;
+export interface MemoPolicyConfig extends ProgramPolicyConfig<
+    typeof MEMO_PROGRAM_ADDRESS,
+    MemoInstruction,
+    MemoInstructionConfigs
+> {
+    /**
+     * Requirements for this program in the transaction.
+     * - `true`: Program MUST be present in the transaction.
+     * - `undefined`: Program is optional (policy runs only if present).
+     */
+    required?: boolean;
 }
 
 // ============================================================================
@@ -65,29 +90,36 @@ export interface MemoPolicyConfig {
  * verifies signer accounts.
  *
  * @param config - The Memo policy configuration
- * @returns An InstructionPolicy that validates Memo instructions
+ * @returns A ProgramPolicy that validates Memo instructions
  *
  * @example
  * ```typescript
  * // Declarative: use built-in constraints
  * const memoPolicy = createMemoPolicy({
- *     allow: {
- *         maxLength: 256,
- *         requiredPrefix: "app:",
+ *     instructions: {
+ *         [MemoInstruction.Memo]: {
+ *             maxLength: 256,
+ *             requiredPrefix: "app:",
+ *         },
  *     },
+ *     required: true, // This program must be present in the transaction
  * });
  *
  * // Custom: full control with a function
  * const customMemoPolicy = createMemoPolicy({
- *     allow: async (ctx) => {
- *         // Custom validation logic
- *         return true;
+ *     instructions: {
+ *         [MemoInstruction.Memo]: async (ctx) => {
+ *             // Custom validation logic
+ *             return true;
+ *         },
  *     },
  * });
  * ```
  */
-export function createMemoPolicy(config: MemoPolicyConfig): InstructionPolicy {
+export function createMemoPolicy(config: MemoPolicyConfig): ProgramPolicy {
     return {
+        programAddress: MEMO_PROGRAM_ADDRESS,
+        required: config.required,
         async validate(ctx: InstructionPolicyContext): Promise<PolicyResult> {
             // Assert this is a valid Memo Program instruction with data
             assertIsInstructionForProgram(ctx.instruction, MEMO_PROGRAM_ADDRESS);
@@ -97,26 +129,30 @@ export function createMemoPolicy(config: MemoPolicyConfig): InstructionPolicy {
             const typedCtx = ctx as MemoPolicyContext;
             const ix = typedCtx.instruction as ValidatedInstruction;
 
+            // Get the instruction config (Memo only has one instruction type)
+            const ixConfig = config.instructions[MemoInstruction.Memo];
+
             // 1. Deny: undefined or false
-            if (config.allow === undefined || config.allow === false) {
-                return "Memo: Memo instructions not allowed";
+            if (ixConfig === undefined || ixConfig === false) {
+                const reason = ixConfig === false ? "explicitly denied" : "not allowed";
+                return `Memo: Memo instruction ${reason}`;
             }
 
             // 2. Allow all: true
-            if (config.allow === true) {
+            if (ixConfig === true) {
                 return runCustomValidator(config.customValidator, typedCtx);
             }
 
             // 3. Custom validator: function
-            if (typeof config.allow === "function") {
-                const result = await config.allow(typedCtx);
+            if (typeof ixConfig === "function") {
+                const result = await ixConfig(typedCtx);
                 if (result !== true) return result;
                 return runCustomValidator(config.customValidator, typedCtx);
             }
 
             // 4. Declarative config: object
             const memoData = ix.data;
-            const memoConfig = config.allow;
+            const memoConfig = ixConfig;
 
             // Check max length
             if (memoConfig.maxLength !== undefined && memoData.length > memoConfig.maxLength) {

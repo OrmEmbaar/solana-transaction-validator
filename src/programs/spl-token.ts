@@ -23,9 +23,9 @@ import {
     parseSetAuthorityInstruction,
 } from "@solana-program/token";
 import type {
-    InstructionPolicy,
     InstructionPolicyContext,
     PolicyResult,
+    ProgramPolicy,
     ProgramPolicyConfig,
 } from "../types.js";
 import { runCustomValidator } from "./utils.js";
@@ -134,11 +134,19 @@ export interface TokenInstructionConfigs {
  * - Config object: instruction is ALLOWED with declarative constraints
  * - Function: instruction is ALLOWED with custom validation logic
  */
-export type SplTokenPolicyConfig = ProgramPolicyConfig<
+export interface SplTokenPolicyConfig extends ProgramPolicyConfig<
     typeof TOKEN_PROGRAM_ADDRESS,
     TokenInstruction,
     TokenInstructionConfigs
->;
+> {
+    /**
+     * Requirements for this program in the transaction.
+     * - `true`: Program MUST be present in the transaction.
+     * - `TokenInstruction[]`: Program MUST be present AND contain these instruction types.
+     * - `undefined`: Program is optional (policy runs only if present).
+     */
+    required?: boolean | TokenInstruction[];
+}
 
 // ============================================================================
 // Policy implementation
@@ -151,7 +159,7 @@ export type SplTokenPolicyConfig = ProgramPolicyConfig<
  * and parsing, ensuring accurate discriminator matching and data extraction.
  *
  * @param config - The SPL Token policy configuration
- * @returns An InstructionPolicy that validates SPL Token instructions
+ * @returns A ProgramPolicy that validates SPL Token instructions
  *
  * @example
  * ```typescript
@@ -171,11 +179,14 @@ export type SplTokenPolicyConfig = ProgramPolicyConfig<
  *         // Explicit deny
  *         [TokenInstruction.SetAuthority]: false,
  *     },
+ *     required: true, // This program must be present in the transaction
  * });
  * ```
  */
-export function createSplTokenPolicy(config: SplTokenPolicyConfig): InstructionPolicy {
+export function createSplTokenPolicy(config: SplTokenPolicyConfig): ProgramPolicy {
     return {
+        programAddress: TOKEN_PROGRAM_ADDRESS,
+        required: config.required,
         async validate(ctx: InstructionPolicyContext): Promise<PolicyResult> {
             // Assert this is a valid Token Program instruction with data and accounts
             assertIsInstructionForProgram(ctx.instruction, TOKEN_PROGRAM_ADDRESS);
