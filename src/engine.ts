@@ -65,8 +65,44 @@ export type TransactionValidator = (
 /**
  * Creates a transaction validator that enforces the configured policies.
  *
+ * The returned validator function can be reused for multiple transactions.
+ * It validates in this order:
+ * 1. Global policy (signer role, limits, versions, ALTs)
+ * 2. Required programs check
+ * 3. Per-instruction validation against program validators
+ * 4. Simulation validation (if configured)
+ *
  * @param config - The validator configuration
- * @returns A validation function that can be reused for multiple requests
+ * @returns A validation function that throws `ValidationError` on failure
+ *
+ * @example
+ * ```typescript
+ * import { createTransactionValidator, SignerRole } from "solana-tx-validator";
+ *
+ * const validator = createTransactionValidator({
+ *     global: {
+ *         signerRole: SignerRole.FeePayerOnly,
+ *         maxInstructions: 10,
+ *     },
+ *     programs: [
+ *         createSystemProgramValidator({
+ *             instructions: {
+ *                 [SystemInstruction.TransferSol]: { maxLamports: 1_000_000_000n },
+ *             },
+ *         }),
+ *     ],
+ * });
+ *
+ * // Use the validator
+ * try {
+ *     await validator(compiledTransaction, { signer: mySignerAddress });
+ *     // Safe to sign
+ * } catch (error) {
+ *     if (error instanceof ValidationError) {
+ *         console.error("Rejected:", error.message);
+ *     }
+ * }
+ * ```
  */
 export function createTransactionValidator(
     config: TransactionValidatorConfig,

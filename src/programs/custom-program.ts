@@ -9,12 +9,25 @@ import {
 
 /**
  * A rule for matching instruction discriminators.
+ *
+ * @example
+ * ```typescript
+ * // Match Anchor 8-byte discriminator (prefix)
+ * { discriminator: new Uint8Array([0x9a, 0x5c, 0x1b, 0x3d, 0x8f, 0x2e, 0x7a, 0x4c]), matchMode: "prefix" }
+ *
+ * // Match exact instruction data
+ * { discriminator: new Uint8Array([2, 0, 0, 0]), matchMode: "exact" }
+ * ```
  */
 export interface DiscriminatorRule {
     /** The instruction discriminator bytes to match */
     discriminator: ReadonlyUint8Array;
 
-    /** How to match: 'exact' matches full data, 'prefix' matches first N bytes */
+    /**
+     * How to match the discriminator:
+     * - `prefix`: Instruction data must start with these bytes
+     * - `exact`: Instruction data must exactly match these bytes
+     */
     matchMode: "exact" | "prefix";
 }
 

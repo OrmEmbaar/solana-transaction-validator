@@ -51,16 +51,50 @@ export interface InstructionValidationContext<
 
 /**
  * Result of a validation.
- * - true: Allowed
- * - false: Denied (generic)
- * - string: Denied with reason
+ * - `true`: Allowed
+ * - `false`: Denied (generic rejection)
+ * - `string`: Denied with a specific reason
+ *
+ * @example
+ * ```typescript
+ * // Allow the instruction
+ * return true;
+ *
+ * // Deny with a reason
+ * return "Transfer amount exceeds limit";
+ *
+ * // Generic deny (not recommended - prefer a reason)
+ * return false;
+ * ```
  */
 export type ValidationResult = boolean | string;
 
 /**
- * Custom validation callback with program-specific typing.
+ * Custom validation callback for instruction-level validation.
+ *
+ * Use this when declarative constraints aren't sufficient and you need
+ * full programmatic control over validation logic.
  *
  * @template TProgramAddress - The program address type for narrowing
+ *
+ * @example
+ * ```typescript
+ * const customValidator: CustomValidationCallback = async (ctx) => {
+ *     const { instruction, signer } = ctx;
+ *
+ *     // Access parsed instruction data
+ *     if (instruction.data[0] === 0x01) {
+ *         return "Instruction type 0x01 is not allowed";
+ *     }
+ *
+ *     // Check signer involvement
+ *     if (instruction.accounts?.some(acc => acc.address === signer)) {
+ *         return true;
+ *     }
+ *
+ *     return "Signer must be involved in instruction";
+ * };
+ * ```
  */
 export type CustomValidationCallback<TProgramAddress extends string = string> = (
     ctx: InstructionValidationContext<TProgramAddress>,
@@ -68,6 +102,18 @@ export type CustomValidationCallback<TProgramAddress extends string = string> = 
 
 /**
  * Role the signer can play in a transaction.
+ *
+ * @example
+ * ```typescript
+ * // Signer can only pay fees, not participate in instructions
+ * signerRole: SignerRole.FeePayerOnly
+ *
+ * // Signer can only participate, someone else pays fees
+ * signerRole: SignerRole.ParticipantOnly
+ *
+ * // No restrictions on signer role
+ * signerRole: SignerRole.Any
+ * ```
  */
 export enum SignerRole {
     /** Signer can ONLY pay fees (must be fee payer, cannot participate) */
@@ -82,6 +128,19 @@ export enum SignerRole {
 
 /**
  * Global policy configuration applied to all transactions.
+ *
+ * @example
+ * ```typescript
+ * const globalPolicy: GlobalPolicyConfig = {
+ *     signerRole: SignerRole.FeePayerOnly,
+ *     minInstructions: 1,
+ *     maxInstructions: 10,
+ *     maxSignatures: 3,
+ *     maxAccounts: 64,
+ *     allowedVersions: [0],
+ *     addressLookupTables: false,
+ * };
+ * ```
  */
 export interface GlobalPolicyConfig {
     /** How the signer can participate in the transaction (REQUIRED) */
@@ -139,6 +198,16 @@ export interface GlobalPolicyConfig {
 
 /**
  * Configuration for address lookup table validation.
+ *
+ * @example
+ * ```typescript
+ * // Allow specific lookup tables with constraints
+ * addressLookupTables: {
+ *     allowedTables: [address("4QwSwNriKPrz8DLW4ju5uxC2TN5cksJx6tPUPj7DGLAW")],
+ *     maxTables: 2,
+ *     maxIndexedAccounts: 32,
+ * }
+ * ```
  */
 export interface AddressLookupConfig {
     /**
@@ -163,6 +232,15 @@ export interface AddressLookupConfig {
 /**
  * Simulation-based constraints that require RPC access.
  * These are validated separately from GlobalPolicyConfig.
+ *
+ * @example
+ * ```typescript
+ * const constraints: SimulationConstraints = {
+ *     requireSuccess: true,
+ *     maxComputeUnits: 200_000,
+ *     forbidSignerAccountClosure: true,
+ * };
+ * ```
  */
 export interface SimulationConstraints {
     /**

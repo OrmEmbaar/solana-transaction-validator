@@ -1,15 +1,8 @@
 # solana-tx-validator
 
-Declarative transaction policy validation for Solana remote signers. Define what transactions your keys are allowed to sign using a type-safe, composable policy engine.
+Declarative transaction validation for Solana remote signers. Validate untrusted transactions before signing with a type-safe, composable policy engine built for `@solana/kit`.
 
-## Features
-
-- **Declarative policies** - Define allowed operations with simple configuration objects
-- **Program-level validation** - Built-in support for System Program, SPL Token, Token-2022, Compute Budget, and Memo
-- **Custom programs** - Easy discriminator-based allowlisting for any program
-- **Global constraints** - Signer roles, transaction limits, version validation
-- **Simulation validation** - Optional RPC-based constraints (compute units, account closure)
-- **Type-safe** - Full TypeScript support with program-specific typing
+**Secure by default:** Programs and instructions are denied unless explicitly allowed. Define exactly what your keys can sign.
 
 ## Installation
 
@@ -19,7 +12,7 @@ npm install solana-tx-validator
 pnpm add solana-tx-validator
 ```
 
-**Peer dependencies:** This package requires `@solana/kit` to be installed in your project.
+Requires `@solana/kit` as a peer dependency.
 
 ## Quick Start
 
@@ -32,31 +25,26 @@ import {
     SignerRole,
     SystemInstruction,
     ComputeBudgetInstruction,
+    ValidationError,
 } from "solana-tx-validator";
 
-// Define your policy
-const validator = createTransactionValidator({
-    // Global constraints
-    global: {
-        signerRole: SignerRole.FeePayerOnly, // Signer can only pay fees
-        maxInstructions: 10,
-        maxSignatures: 3,
-    },
+const TREASURY = address("Treasury111111111111111111111111111111111");
 
-    // Program-specific policies (array of self-contained policies)
+// Create a validator with your policies
+const validator = createTransactionValidator({
+    global: {
+        signerRole: SignerRole.FeePayerOnly,
+        maxInstructions: 10,
+    },
     programs: [
         createSystemProgramValidator({
             instructions: {
-                // Allow transfers up to 1 SOL to specific addresses
                 [SystemInstruction.TransferSol]: {
-                    maxLamports: 1_000_000_000n,
-                    allowedDestinations: [address("Treasury111111111111111111111111111111111")],
+                    maxLamports: 1_000_000_000n, // 1 SOL
+                    allowedDestinations: [TREASURY],
                 },
-                // Explicitly deny account creation
-                [SystemInstruction.CreateAccount]: false,
             },
         }),
-
         createComputeBudgetValidator({
             instructions: {
                 [ComputeBudgetInstruction.SetComputeUnitLimit]: true,
@@ -68,70 +56,68 @@ const validator = createTransactionValidator({
     ],
 });
 
-// Validate a transaction
+// Validate before signing
 try {
     await validator(compiledTransaction, {
         signer: address("YourSignerPublicKey111111111111111111111"),
     });
-    // Transaction is allowed - proceed with signing
+    // Safe to sign
 } catch (error) {
     if (error instanceof ValidationError) {
-        console.error("Policy denied:", error.message);
+        console.error("Rejected:", error.message);
     }
 }
 ```
 
 ## Core Concepts
 
-### Policy Engine
+### Global Policy
 
-The `createTransactionValidator` function creates a reusable validator that enforces your policies:
-
-```typescript
-const validator = createTransactionValidator({
-    global: GlobalPolicyConfig,    // Required: global constraints
-    programs?: ProgramPolicy[],    // Optional: array of program policies
-    simulation?: SimulationConfig, // Optional: RPC-based validation
-});
-```
-
-### Global Policies
-
-Global policies apply to the entire transaction:
+Every validator requires a global policy that applies to all transactions:
 
 ```typescript
 global: {
-    // REQUIRED: How can the signer participate?
-    signerRole: SignerRole.FeePayerOnly | SignerRole.ParticipantOnly | SignerRole.Any,
-
-    // Optional constraints
-    minInstructions?: number,      // Default: 1 (prevents empty transactions)
-    maxInstructions?: number,
-    minSignatures?: number,
-    maxSignatures?: number,
-    maxAccounts?: number,          // Total accounts in transaction
-    allowedVersions?: (0 | "legacy")[],  // Default: [0] (v0 only)
-
-    // Address lookup tables (v0 only)
-    addressLookupTables?: false | true | {
-        allowedTables?: Address[],      // Allowlist of trusted tables
-        maxTables?: number,             // Max tables per transaction
-        maxIndexedAccounts?: number,    // Max total indexed accounts
-    },  // Default: false (deny all - secure by default)
+    signerRole: SignerRole.FeePayerOnly,  // Required: FeePayerOnly | ParticipantOnly | Any
+    minInstructions: 1,                    // Default: 1 (prevents empty transactions)
+    maxInstructions: 10,
+    maxSignatures: 3,
+    maxAccounts: 64,
+    allowedVersions: [0],                  // Default: [0] (v0 only)
+    addressLookupTables: false,            // Default: false (deny all ALTs)
 }
+```
+
+### Program Validators
+
+Programs not in the `programs` array are **denied by default**. This strict allowlist ensures only explicitly permitted programs can be called.
+
+```typescript
+programs: [
+    createSystemProgramValidator({
+        instructions: {
+            /* ... */
+        },
+    }),
+    createSplTokenValidator({
+        instructions: {
+            /* ... */
+        },
+    }),
+    // Any program not listed here will be rejected
+];
 ```
 
 ### Instruction Configuration
 
-Each instruction can be configured as:
+Each instruction can be configured in five ways:
 
-| Config Value          | Behavior                                                |
-| --------------------- | ------------------------------------------------------- |
-| `undefined` (omitted) | Instruction is **denied** (implicit)                    |
-| `false`               | Instruction is **denied** (explicit, self-documenting)  |
-| `true`                | Instruction is **allowed** with no constraints          |
-| `{ ...config }`       | Instruction is **allowed** with declarative constraints |
-| `(ctx) => ...`        | Instruction is **allowed** with custom validation logic |
+| Config                | Behavior                             |
+| --------------------- | ------------------------------------ |
+| `undefined` (omitted) | Denied (implicit)                    |
+| `false`               | Denied (explicit, self-documenting)  |
+| `true`                | Allowed with no constraints          |
+| `{ ...config }`       | Allowed with declarative constraints |
+| `(ctx) => ...`        | Allowed with custom validation       |
 
 ```typescript
 instructions: {
@@ -139,46 +125,17 @@ instructions: {
         maxLamports: 1_000_000_000n,
         allowedDestinations: [TREASURY],
     },
-
     [SystemInstruction.AdvanceNonceAccount]: true,
-
     [SystemInstruction.CreateAccount]: false,
-
     [SystemInstruction.Assign]: async (ctx) => {
-        // Custom logic - return true to allow, string to deny with reason
-        if (someCondition) return true;
-        return "Custom validation failed";
+        // Custom logic
+        return someCondition ? true : "Denied: reason";
     },
-
-    // Omitted instructions are implicitly denied
+    // Omitted instructions are denied
 }
 ```
 
-### Required Programs
-
-Mark programs or specific instructions as required by adding `required` to the policy config:
-
-```typescript
-programs: [
-    // Program must be present in the transaction
-    createComputeBudgetValidator({
-        instructions: {
-            /* ... */
-        },
-        required: true,
-    }),
-
-    // Specific instructions must be present
-    createSystemProgramValidator({
-        instructions: {
-            /* ... */
-        },
-        required: [SystemInstruction.TransferSol],
-    }),
-];
-```
-
-## Built-in Program Policies
+## Built-in Program Validators
 
 ### System Program
 
@@ -188,88 +145,63 @@ import { createSystemProgramValidator, SystemInstruction } from "solana-tx-valid
 createSystemProgramValidator({
     instructions: {
         [SystemInstruction.TransferSol]: {
-            maxLamports?: bigint,
-            allowedDestinations?: Address[],
+            maxLamports: 1_000_000_000n,
+            allowedDestinations: [TREASURY],
         },
         [SystemInstruction.CreateAccount]: {
-            maxLamports?: bigint,
-            maxSpace?: bigint,
-            allowedOwnerPrograms?: Address[],
-        },
-        [SystemInstruction.InitializeNonceAccount]: {
-            allowedNonceAccounts?: Address[],
-            allowedNewAuthorities?: Address[],
+            maxLamports: 10_000_000n,
+            maxSpace: 1000n,
+            allowedOwnerPrograms: [TOKEN_PROGRAM],
         },
         [SystemInstruction.AdvanceNonceAccount]: {
-            allowedNonceAccounts?: Address[],
-            allowedAuthorities?: Address[],
+            allowedNonceAccounts: [NONCE_ACCOUNT],
+            allowedAuthorities: [AUTHORITY],
         },
-        [SystemInstruction.WithdrawNonceAccount]: {
-            maxLamports?: bigint,
-            allowedRecipients?: Address[],
-            allowedNonceAccounts?: Address[],
-            allowedAuthorities?: Address[],
-        },
-        [SystemInstruction.AuthorizeNonceAccount]: {
-            allowedNonceAccounts?: Address[],
-            allowedCurrentAuthorities?: Address[],
-            allowedNewAuthorities?: Address[],
-        },
-        [SystemInstruction.UpgradeNonceAccount]: {
-            allowedNonceAccounts?: Address[],
-        },
-        // ... other instructions
     },
-    required?: boolean | SystemInstruction[],
 });
 ```
 
-### SPL Token & Token-2022
+### SPL Token
 
 ```typescript
 import { createSplTokenValidator, TokenInstruction } from "solana-tx-validator";
-import { createToken2022Validator, Token2022Instruction } from "solana-tx-validator";
 
 createSplTokenValidator({
     instructions: {
         [TokenInstruction.Transfer]: {
-            maxAmount?: bigint,
+            maxAmount: 1_000_000n,
         },
         [TokenInstruction.TransferChecked]: {
-            maxAmount?: bigint,
-            allowedMints?: Address[],
+            maxAmount: 1_000_000n,
+            allowedMints: [USDC_MINT],
         },
         [TokenInstruction.Approve]: {
-            maxAmount?: bigint,
-            allowedMints?: Address[],
-            allowedDelegates?: Address[],
-        },
-        [TokenInstruction.Revoke]: {
-            allowedSources?: Address[],
-            allowedOwners?: Address[],
+            maxAmount: 500_000n,
+            allowedDelegates: [DELEGATE],
         },
         [TokenInstruction.CloseAccount]: {
-            allowedAccounts?: Address[],
-            allowedDestinations?: Address[],
-            allowedOwners?: Address[],
+            allowedAccounts: [USER_TOKEN_ACCOUNT],
+            allowedDestinations: [TREASURY],
         },
-        [TokenInstruction.FreezeAccount]: {
-            allowedAccounts?: Address[],
-            allowedMints?: Address[],
-            allowedAuthorities?: Address[],
-        },
-        [TokenInstruction.ThawAccount]: {
-            allowedAccounts?: Address[],
-            allowedMints?: Address[],
-            allowedAuthorities?: Address[],
-        },
-        // ... other instructions
     },
-    required?: boolean | TokenInstruction[],
 });
+```
 
-// Token-2022 exposes the same config surface (Transfer, Approve, Mint/Burn, Close/Revoke/Freeze/Thaw)
-createToken2022Validator({ instructions: { /* ... */ } });
+### Token-2022
+
+Same API as SPL Token:
+
+```typescript
+import { createToken2022Validator, Token2022Instruction } from "solana-tx-validator";
+
+createToken2022Validator({
+    instructions: {
+        [Token2022Instruction.TransferChecked]: {
+            maxAmount: 1_000_000n,
+            allowedMints: [TOKEN_2022_MINT],
+        },
+    },
+});
 ```
 
 ### Compute Budget
@@ -280,19 +212,18 @@ import { createComputeBudgetValidator, ComputeBudgetInstruction } from "solana-t
 createComputeBudgetValidator({
     instructions: {
         [ComputeBudgetInstruction.SetComputeUnitLimit]: {
-            maxUnits?: number,
+            maxUnits: 1_400_000,
         },
         [ComputeBudgetInstruction.SetComputeUnitPrice]: {
-            maxMicroLamportsPerCu?: bigint,
+            maxMicroLamportsPerCu: 100_000n,
         },
         [ComputeBudgetInstruction.RequestHeapFrame]: {
-            maxBytes?: number,
+            maxBytes: 256 * 1024,
         },
         [ComputeBudgetInstruction.SetLoadedAccountsDataSizeLimit]: {
-            maxBytes?: number,
+            maxBytes: 65_536,
         },
     },
-    required?: boolean | ComputeBudgetInstruction[],
 });
 ```
 
@@ -304,34 +235,48 @@ import { createMemoValidator, MemoInstruction } from "solana-tx-validator";
 createMemoValidator({
     instructions: {
         [MemoInstruction.Memo]: {
-            maxLength?: number,
-            requiredPrefix?: string,
+            maxLength: 256,
+            requiredPrefix: "app:",
         },
     },
-    required?: boolean,
 });
 ```
 
-### Custom Programs
+## Custom Programs
 
-For programs without official `@solana-program/*` packages:
+For programs without official `@solana-program/*` packages, use discriminator-based allowlisting:
 
 ```typescript
-import { createCustomProgramValidator } from "solana-tx-validator";
+import { createCustomProgramValidator, address } from "solana-tx-validator";
 
-createCustomProgramValidator({
-    programAddress: address("YourProgram111111111111111111111111111111"),
+// Example: Allow specific instructions from your custom program
+const myProgramValidator = createCustomProgramValidator({
+    programAddress: address("MyProgram111111111111111111111111111111111"),
     allowedInstructions: [
-        { discriminator: new Uint8Array([0, 1, 2, 3]), matchMode: "prefix" },
-        { discriminator: new Uint8Array([4, 5, 6, 7, 8, 9, 10, 11]), matchMode: "exact" },
+        // Anchor 8-byte discriminator (prefix match)
+        {
+            discriminator: new Uint8Array([0x9a, 0x5c, 0x1b, 0x3d, 0x8f, 0x2e, 0x7a, 0x4c]),
+            matchMode: "prefix",
+        },
+        // Native 1-byte discriminator (exact match on full instruction data)
+        {
+            discriminator: new Uint8Array([2, 0, 0, 0 /* ... rest of expected data */]),
+            matchMode: "exact",
+        },
     ],
+    // Optional: Additional validation after discriminator check
     customValidator: async (ctx) => {
-        // Additional validation
+        const data = ctx.instruction.data;
+        // Parse and validate instruction data
         return true;
     },
-    required?: boolean,
 });
 ```
+
+**Match modes:**
+
+- `prefix`: Instruction data must start with the discriminator bytes
+- `exact`: Instruction data must exactly match the discriminator bytes
 
 ## Simulation Validation
 
@@ -349,109 +294,42 @@ const validator = createTransactionValidator({
         rpc: createSolanaRpc("https://api.mainnet-beta.solana.com"),
         constraints: {
             requireSuccess: true, // Simulation must succeed
-            maxComputeUnits: 200_000, // Max CU consumption
+            maxComputeUnits: 200_000, // Cap CU consumption
             forbidSignerAccountClosure: true, // Prevent signer drain attacks
         },
     },
 });
 ```
 
-Simulation is **opt-in**: no RPC call is made unless you provide a `simulation` block _and_ include the compiled wire bytes when invoking the validator.
-
-> **Required context:** pass `transactionMessage` (base64-encoded wire transaction) alongside `signer` in the `baseContext`. Without it, simulation short-circuits with an error because it cannot re-run the transaction against RPC nodes.
-
-## Address Lookup Tables
-
-Control v0 transaction lookup table usage (defaults to deny all for security):
+Simulation requires `transactionMessage` (base64-encoded wire transaction) in the context:
 
 ```typescript
-const validator = createTransactionValidator({
-    global: {
-        signerRole: SignerRole.Any,
-
-        // Option 1: Deny all lookup tables (default if omitted)
-        addressLookupTables: false,
-
-        // Option 2: Allow any lookup tables (opt-out of validation)
-        addressLookupTables: true,
-
-        // Option 3: Allow specific tables with constraints (recommended)
-        addressLookupTables: {
-            allowedTables: [address("4QwSwNriKPrz8DLW4ju5uxC2TN5cksJx6tPUPj7DGLAW")],
-            maxTables: 2,
-            maxIndexedAccounts: 32,
-        },
-    },
-    programs: [
-        /* ... */
-    ],
+await validator(compiledTransaction, {
+    signer: address("..."),
+    transactionMessage: base64EncodedTransaction,
 });
 ```
 
-**Security Note:** This validates lookup table addresses and structure. To validate the actual resolved addresses inside tables, use simulation (which requires RPC).
+## Required Programs
 
-### Recommended Guardrails
-
-Combine the new declarative knobs with structural limits and simulation to keep untrusted transactions predictable:
+Mark programs or specific instructions as required:
 
 ```typescript
-const validator = createTransactionValidator({
-    global: {
-        signerRole: SignerRole.FeePayerOnly,
-        minInstructions: 1,
-        maxInstructions: 8,
-        maxAccounts: 64,
-        addressLookupTables: false, // Deny lookup tables for maximum security
-    },
-    programs: [
-        createSystemProgramValidator({
-            instructions: {
-                [SystemInstruction.WithdrawNonceAccount]: {
-                    maxLamports: 500_000_000n,
-                    allowedRecipients: [TREASURY],
-                    allowedNonceAccounts: [OPERATIONS_NONCE],
-                    allowedAuthorities: [TREASURY],
-                },
-                [SystemInstruction.AuthorizeNonceAccount]: {
-                    allowedNonceAccounts: [OPERATIONS_NONCE],
-                    allowedCurrentAuthorities: [TREASURY],
-                    allowedNewAuthorities: [TREASURY_ROTATION_BUFFER],
-                },
-            },
-        }),
-        createSplTokenValidator({
-            instructions: {
-                [TokenInstruction.CloseAccount]: {
-                    allowedAccounts: [USER_VAULT],
-                    allowedDestinations: [TREASURY],
-                    allowedOwners: [SIGNER],
-                },
-                [TokenInstruction.FreezeAccount]: {
-                    allowedAccounts: [USER_VAULT],
-                    allowedMints: [APP_TOKEN_MINT],
-                    allowedAuthorities: [FREEZE_AUTHORITY],
-                },
-            },
-        }),
-        createComputeBudgetValidator({
-            instructions: {
-                [ComputeBudgetInstruction.SetComputeUnitLimit]: { maxUnits: 1_000_000 },
-                [ComputeBudgetInstruction.SetLoadedAccountsDataSizeLimit]: { maxBytes: 65_536 },
-            },
-        }),
-    ],
-    simulation: {
-        rpc,
-        constraints: {
-            requireSuccess: true,
-            forbidSignerAccountClosure: true,
-            maxComputeUnits: 200_000,
+programs: [
+    createComputeBudgetValidator({
+        instructions: {
+            /* ... */
         },
-    },
-});
+        required: true, // Program must be present
+    }),
+    createSystemProgramValidator({
+        instructions: {
+            /* ... */
+        },
+        required: [SystemInstruction.TransferSol], // Specific instruction required
+    }),
+];
 ```
-
-These defaults keep transactions bounded (≤8 instructions / 64 accounts) while ensuring nonce withdrawals, token closes, and compute-budget inflation cannot bypass the allowlists you define.
 
 ## Error Handling
 
@@ -474,16 +352,17 @@ try {
 
 ## TypeScript
 
-The package exports all types for building custom validators:
+All types are exported for building custom validators:
 
 ```typescript
 import type {
-    PolicyResult,
-    GlobalPolicyContext,
-    InstructionPolicyContext,
+    ValidationResult,
+    GlobalValidationContext,
+    InstructionValidationContext,
     CustomValidationCallback,
-    InstructionPolicy,
-    ProgramPolicy,
+    ProgramValidator,
+    GlobalPolicyConfig,
+    SimulationConstraints,
 } from "solana-tx-validator";
 ```
 
