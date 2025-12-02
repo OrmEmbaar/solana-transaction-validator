@@ -1,4 +1,4 @@
-import type { GlobalPolicyContext, PolicyResult } from "../types.js";
+import type { GlobalValidationContext, ValidationResult } from "../types.js";
 
 /**
  * Configuration for transaction limits validation.
@@ -39,7 +39,7 @@ export interface TransactionLimitsConfig {
  * Calculates the total number of accounts in a transaction.
  * Includes both static accounts and accounts from address lookup tables.
  */
-function getTotalAccountCount(ctx: GlobalPolicyContext): number {
+function getTotalAccountCount(ctx: GlobalValidationContext): number {
     // Static accounts
     let count = ctx.transaction.staticAccounts.length;
 
@@ -59,12 +59,12 @@ function getTotalAccountCount(ctx: GlobalPolicyContext): number {
  *
  * @param config - The limits configuration
  * @param ctx - The global policy context
- * @returns PolicyResult (true if allowed, string with reason if denied)
+ * @returns ValidationResult (true if allowed, string with reason if denied)
  */
 export function validateTransactionLimits(
     config: TransactionLimitsConfig,
-    ctx: GlobalPolicyContext,
-): PolicyResult {
+    ctx: GlobalValidationContext,
+): ValidationResult {
     const instructionCount = ctx.decompiledMessage.instructions.length;
     const signerCount = ctx.transaction.header.numSignerAccounts;
 

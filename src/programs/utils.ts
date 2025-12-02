@@ -1,5 +1,5 @@
 import type { ReadonlyUint8Array } from "@solana/kit";
-import type { InstructionPolicyContext, PolicyResult, CustomValidationCallback } from "../types.js";
+import type { InstructionValidationContext, ValidationResult, CustomValidationCallback } from "../types.js";
 
 // Re-export for convenience
 export type { CustomValidationCallback };
@@ -34,7 +34,7 @@ export function composeValidators<TProgramAddress extends string = string>(
     first: CustomValidationCallback<TProgramAddress>,
     second: CustomValidationCallback<TProgramAddress>,
 ): CustomValidationCallback<TProgramAddress> {
-    return async (ctx: InstructionPolicyContext<TProgramAddress>): Promise<PolicyResult> => {
+    return async (ctx: InstructionValidationContext<TProgramAddress>): Promise<ValidationResult> => {
         const firstResult = await first(ctx);
         if (firstResult !== true) return firstResult;
         return await second(ctx);
@@ -46,8 +46,8 @@ export function composeValidators<TProgramAddress extends string = string>(
  */
 export async function runCustomValidator<TProgramAddress extends string = string>(
     validator: CustomValidationCallback<TProgramAddress> | undefined,
-    ctx: InstructionPolicyContext<TProgramAddress>,
-): Promise<PolicyResult> {
+    ctx: InstructionValidationContext<TProgramAddress>,
+): Promise<ValidationResult> {
     if (validator) {
         return await validator(ctx);
     }

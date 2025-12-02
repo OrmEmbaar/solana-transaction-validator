@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { arraysEqual, hasPrefix, composeValidators, runCustomValidator } from "../utils.js";
-import type { InstructionPolicyContext } from "../../types.js";
+import type { InstructionValidationContext } from "../../types.js";
 
 describe("arraysEqual", () => {
     it("should return true for identical arrays", () => {
@@ -73,7 +73,7 @@ describe("hasPrefix", () => {
 });
 
 describe("composeValidators", () => {
-    const mockCtx = {} as InstructionPolicyContext;
+    const mockCtx = {} as InstructionValidationContext;
 
     it("should return true when both validators pass", async () => {
         const first = () => true;
@@ -130,7 +130,7 @@ describe("composeValidators", () => {
 });
 
 describe("runCustomValidator", () => {
-    const mockCtx = {} as InstructionPolicyContext;
+    const mockCtx = {} as InstructionValidationContext;
 
     it("should return true when no validator provided", async () => {
         expect(await runCustomValidator(undefined, mockCtx)).toBe(true);

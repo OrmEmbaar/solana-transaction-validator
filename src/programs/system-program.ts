@@ -22,9 +22,9 @@ import {
     parseTransferSolWithSeedInstruction,
 } from "@solana-program/system";
 import type {
-    InstructionPolicyContext,
-    PolicyResult,
-    ProgramPolicy,
+    InstructionValidationContext,
+    ValidationResult,
+    ProgramValidator,
     ProgramPolicyConfig,
 } from "../types.js";
 import { runCustomValidator } from "./utils.js";
@@ -33,7 +33,7 @@ import { runCustomValidator } from "./utils.js";
 export { SYSTEM_PROGRAM_ADDRESS, SystemInstruction };
 
 // Program-specific context type
-export type SystemProgramPolicyContext = InstructionPolicyContext<typeof SYSTEM_PROGRAM_ADDRESS>;
+export type SystemProgramValidationContext = InstructionValidationContext<typeof SYSTEM_PROGRAM_ADDRESS>;
 
 // Type for a fully validated instruction
 type ValidatedInstruction = Instruction &
@@ -134,11 +134,11 @@ export interface SystemProgramPolicyConfig extends ProgramPolicyConfig<
  * and parsing, ensuring accurate discriminator matching and data extraction.
  *
  * @param config - The System Program policy configuration
- * @returns A ProgramPolicy that validates System Program instructions
+ * @returns A ProgramValidator that validates System Program instructions
  *
  * @example
  * ```typescript
- * const systemPolicy = createSystemProgramPolicy({
+ * const systemPolicy = createSystemProgramValidator({
  *     instructions: {
  *         // Declarative: use built-in constraints
  *         [SystemInstruction.TransferSol]: {
@@ -159,18 +159,18 @@ export interface SystemProgramPolicyConfig extends ProgramPolicyConfig<
  * });
  * ```
  */
-export function createSystemProgramPolicy(config: SystemProgramPolicyConfig): ProgramPolicy {
+export function createSystemProgramValidator(config: SystemProgramPolicyConfig): ProgramValidator {
     return {
         programAddress: SYSTEM_PROGRAM_ADDRESS,
         required: config.required,
-        async validate(ctx: InstructionPolicyContext): Promise<PolicyResult> {
+        async validate(ctx: InstructionValidationContext): Promise<ValidationResult> {
             // Assert this is a valid System Program instruction with data and accounts
             assertIsInstructionForProgram(ctx.instruction, SYSTEM_PROGRAM_ADDRESS);
             assertIsInstructionWithData(ctx.instruction);
             assertIsInstructionWithAccounts(ctx.instruction);
 
             // After assertions, context is now typed for System Program
-            const typedCtx = ctx as SystemProgramPolicyContext;
+            const typedCtx = ctx as SystemProgramValidationContext;
             const ix = typedCtx.instruction as ValidatedInstruction;
 
             // Identify the instruction type
@@ -218,7 +218,7 @@ function validateInstruction(
     ixType: SystemInstruction,
     ixConfig: InstructionConfig,
     ix: ValidatedInstruction,
-): PolicyResult {
+): ValidationResult {
     switch (ixType) {
         case SystemInstruction.TransferSol:
             return validateTransferSol(ixConfig as TransferSolConfig, ix);
@@ -257,7 +257,7 @@ function validateInstruction(
     }
 }
 
-function validateTransferSol(config: TransferSolConfig, ix: ValidatedInstruction): PolicyResult {
+function validateTransferSol(config: TransferSolConfig, ix: ValidatedInstruction): ValidationResult {
     const parsed = parseTransferSolInstruction(ix);
 
     if (config.maxLamports !== undefined && parsed.data.amount > config.maxLamports) {
@@ -277,7 +277,7 @@ function validateTransferSol(config: TransferSolConfig, ix: ValidatedInstruction
 function validateTransferSolWithSeed(
     config: TransferSolConfig,
     ix: ValidatedInstruction,
-): PolicyResult {
+): ValidationResult {
     const parsed = parseTransferSolWithSeedInstruction(ix);
 
     if (config.maxLamports !== undefined && parsed.data.amount > config.maxLamports) {
@@ -297,7 +297,7 @@ function validateTransferSolWithSeed(
 function validateCreateAccount(
     config: CreateAccountConfig,
     ix: ValidatedInstruction,
-): PolicyResult {
+): ValidationResult {
     const parsed = parseCreateAccountInstruction(ix);
 
     if (config.maxLamports !== undefined && parsed.data.lamports > config.maxLamports) {
@@ -321,7 +321,7 @@ function validateCreateAccount(
 function validateCreateAccountWithSeed(
     config: CreateAccountConfig,
     ix: ValidatedInstruction,
-): PolicyResult {
+): ValidationResult {
     const parsed = parseCreateAccountWithSeedInstruction(ix);
 
     if (config.maxLamports !== undefined && parsed.data.amount > config.maxLamports) {
@@ -342,7 +342,7 @@ function validateCreateAccountWithSeed(
     return true;
 }
 
-function validateAssign(config: AssignConfig, ix: ValidatedInstruction): PolicyResult {
+function validateAssign(config: AssignConfig, ix: ValidatedInstruction): ValidationResult {
     const parsed = parseAssignInstruction(ix);
 
     if (config.allowedOwnerPrograms !== undefined) {
@@ -355,7 +355,7 @@ function validateAssign(config: AssignConfig, ix: ValidatedInstruction): PolicyR
     return true;
 }
 
-function validateAssignWithSeed(config: AssignConfig, ix: ValidatedInstruction): PolicyResult {
+function validateAssignWithSeed(config: AssignConfig, ix: ValidatedInstruction): ValidationResult {
     const parsed = parseAssignWithSeedInstruction(ix);
 
     if (config.allowedOwnerPrograms !== undefined) {
@@ -368,7 +368,7 @@ function validateAssignWithSeed(config: AssignConfig, ix: ValidatedInstruction):
     return true;
 }
 
-function validateAllocate(config: AllocateConfig, ix: ValidatedInstruction): PolicyResult {
+function validateAllocate(config: AllocateConfig, ix: ValidatedInstruction): ValidationResult {
     const parsed = parseAllocateInstruction(ix);
 
     if (config.maxSpace !== undefined && parsed.data.space > config.maxSpace) {
@@ -378,7 +378,7 @@ function validateAllocate(config: AllocateConfig, ix: ValidatedInstruction): Pol
     return true;
 }
 
-function validateAllocateWithSeed(config: AllocateConfig, ix: ValidatedInstruction): PolicyResult {
+function validateAllocateWithSeed(config: AllocateConfig, ix: ValidatedInstruction): ValidationResult {
     const parsed = parseAllocateWithSeedInstruction(ix);
 
     if (config.maxSpace !== undefined && parsed.data.space > config.maxSpace) {

@@ -26,16 +26,16 @@ pnpm add solana-tx-validator
 ```typescript
 import { address } from "@solana/kit";
 import {
-    createPolicyValidator,
-    createSystemProgramPolicy,
-    createComputeBudgetPolicy,
+    createTransactionValidator,
+    createSystemProgramValidator,
+    createComputeBudgetValidator,
     SignerRole,
     SystemInstruction,
     ComputeBudgetInstruction,
 } from "solana-tx-validator";
 
 // Define your policy
-const validator = createPolicyValidator({
+const validator = createTransactionValidator({
     // Global constraints
     global: {
         signerRole: SignerRole.FeePayerOnly, // Signer can only pay fees
@@ -45,7 +45,7 @@ const validator = createPolicyValidator({
 
     // Program-specific policies (array of self-contained policies)
     programs: [
-        createSystemProgramPolicy({
+        createSystemProgramValidator({
             instructions: {
                 // Allow transfers up to 1 SOL to specific addresses
                 [SystemInstruction.TransferSol]: {
@@ -57,7 +57,7 @@ const validator = createPolicyValidator({
             },
         }),
 
-        createComputeBudgetPolicy({
+        createComputeBudgetValidator({
             instructions: {
                 [ComputeBudgetInstruction.SetComputeUnitLimit]: true,
                 [ComputeBudgetInstruction.SetComputeUnitPrice]: {
@@ -76,7 +76,7 @@ try {
     });
     // Transaction is allowed - proceed with signing
 } catch (error) {
-    if (error instanceof PolicyValidationError) {
+    if (error instanceof ValidationError) {
         console.error("Policy denied:", error.message);
     }
 }
@@ -86,10 +86,10 @@ try {
 
 ### Policy Engine
 
-The `createPolicyValidator` function creates a reusable validator that enforces your policies:
+The `createTransactionValidator` function creates a reusable validator that enforces your policies:
 
 ```typescript
-const validator = createPolicyValidator({
+const validator = createTransactionValidator({
     global: GlobalPolicyConfig,    // Required: global constraints
     programs?: ProgramPolicy[],    // Optional: array of program policies
     simulation?: SimulationConfig, // Optional: RPC-based validation
@@ -156,7 +156,7 @@ Mark programs or specific instructions as required by adding `required` to the p
 ```typescript
 programs: [
     // Program must be present in the transaction
-    createComputeBudgetPolicy({
+    createComputeBudgetValidator({
         instructions: {
             /* ... */
         },
@@ -164,7 +164,7 @@ programs: [
     }),
 
     // Specific instructions must be present
-    createSystemProgramPolicy({
+    createSystemProgramValidator({
         instructions: {
             /* ... */
         },
@@ -178,9 +178,9 @@ programs: [
 ### System Program
 
 ```typescript
-import { createSystemProgramPolicy, SystemInstruction } from "solana-tx-validator";
+import { createSystemProgramValidator, SystemInstruction } from "solana-tx-validator";
 
-createSystemProgramPolicy({
+createSystemProgramValidator({
     instructions: {
         [SystemInstruction.TransferSol]: {
             maxLamports?: bigint,
@@ -200,10 +200,10 @@ createSystemProgramPolicy({
 ### SPL Token & Token-2022
 
 ```typescript
-import { createSplTokenPolicy, TokenInstruction } from "solana-tx-validator";
-import { createToken2022Policy, Token2022Instruction } from "solana-tx-validator";
+import { createSplTokenValidator, TokenInstruction } from "solana-tx-validator";
+import { createToken2022Validator, Token2022Instruction } from "solana-tx-validator";
 
-createSplTokenPolicy({
+createSplTokenValidator({
     instructions: {
         [TokenInstruction.Transfer]: {
             maxAmount?: bigint,
@@ -226,9 +226,9 @@ createSplTokenPolicy({
 ### Compute Budget
 
 ```typescript
-import { createComputeBudgetPolicy, ComputeBudgetInstruction } from "solana-tx-validator";
+import { createComputeBudgetValidator, ComputeBudgetInstruction } from "solana-tx-validator";
 
-createComputeBudgetPolicy({
+createComputeBudgetValidator({
     instructions: {
         [ComputeBudgetInstruction.SetComputeUnitLimit]: {
             maxUnits?: number,
@@ -247,9 +247,9 @@ createComputeBudgetPolicy({
 ### Memo
 
 ```typescript
-import { createMemoPolicy, MemoInstruction } from "solana-tx-validator";
+import { createMemoValidator, MemoInstruction } from "solana-tx-validator";
 
-createMemoPolicy({
+createMemoValidator({
     instructions: {
         [MemoInstruction.Memo]: {
             maxLength?: number,
@@ -265,9 +265,9 @@ createMemoPolicy({
 For programs without official `@solana-program/*` packages:
 
 ```typescript
-import { createCustomProgramPolicy } from "solana-tx-validator";
+import { createCustomProgramValidator } from "solana-tx-validator";
 
-createCustomProgramPolicy({
+createCustomProgramValidator({
     programAddress: address("YourProgram111111111111111111111111111111"),
     allowedInstructions: [
         { discriminator: new Uint8Array([0, 1, 2, 3]), matchMode: "prefix" },
@@ -288,7 +288,7 @@ Enable RPC-based validation for runtime constraints:
 ```typescript
 import { createSolanaRpc } from "@solana/kit";
 
-const validator = createPolicyValidator({
+const validator = createTransactionValidator({
     global: { signerRole: SignerRole.Any },
     programs: [
         /* ... */
@@ -308,15 +308,15 @@ const validator = createPolicyValidator({
 
 ## Error Handling
 
-All validation failures throw `PolicyValidationError`:
+All validation failures throw `ValidationError`:
 
 ```typescript
-import { PolicyValidationError } from "solana-tx-validator";
+import { ValidationError } from "solana-tx-validator";
 
 try {
     await validator(transaction, context);
 } catch (error) {
-    if (error instanceof PolicyValidationError) {
+    if (error instanceof ValidationError) {
         console.error(error.message);
         // "System Program: TransferSol amount 2000000000 exceeds limit 1000000000"
         // "Instruction 0 uses unauthorized program TokenkegQfe..."

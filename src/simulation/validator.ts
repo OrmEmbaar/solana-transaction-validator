@@ -1,23 +1,23 @@
 import type { Rpc, SolanaRpcApi } from "@solana/kit";
-import type { GlobalPolicyContext, PolicyResult, SimulationConstraints } from "../types.js";
+import type { GlobalValidationContext, ValidationResult, SimulationConstraints } from "../types.js";
 
 /**
  * Validates a transaction using RPC simulation.
  * Called internally by the policy engine when simulation config is provided.
  *
  * Note: Requires `transactionMessage` (base64 encoded wire transaction) to be
- * provided in the GlobalPolicyContext for simulation to work.
+ * provided in the GlobalValidationContext for simulation to work.
  *
  * @param constraints - Simulation-based constraints
  * @param ctx - The global policy context
  * @param rpc - RPC client for running simulations
- * @returns PolicyResult (true if allowed, string with reason if denied)
+ * @returns ValidationResult (true if allowed, string with reason if denied)
  */
 export async function validateSimulation(
     constraints: SimulationConstraints,
-    ctx: GlobalPolicyContext,
+    ctx: GlobalValidationContext,
     rpc: Rpc<SolanaRpcApi>,
-): Promise<PolicyResult> {
+): Promise<ValidationResult> {
     // 1. Get base64 encoded transaction
     // Require transactionMessage to be provided in context
     if (!ctx.transactionMessage) {

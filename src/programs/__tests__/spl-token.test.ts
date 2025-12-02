@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { createSplTokenPolicy, TokenInstruction } from "../spl-token.js";
-import type { InstructionPolicyContext } from "../../types.js";
+import { createSplTokenValidator, TokenInstruction } from "../spl-token.js";
+import type { InstructionValidationContext } from "../../types.js";
 import { address, type Instruction } from "@solana/kit";
 import {
     getTransferInstruction,
@@ -26,20 +26,20 @@ const DELEGATE = address("11111111111111111111111111111117");
 const ANOTHER_DELEGATE = address("11111111111111111111111111111118");
 
 // Helper to create a mock instruction context
-const createMockContext = (instruction: Instruction): InstructionPolicyContext => {
+const createMockContext = (instruction: Instruction): InstructionValidationContext => {
     return {
         signer: SIGNER,
-        transaction: {} as InstructionPolicyContext["transaction"],
-        decompiledMessage: {} as InstructionPolicyContext["decompiledMessage"],
-        instruction: instruction as InstructionPolicyContext["instruction"],
+        transaction: {} as InstructionValidationContext["transaction"],
+        decompiledMessage: {} as InstructionValidationContext["decompiledMessage"],
+        instruction: instruction as InstructionValidationContext["instruction"],
         instructionIndex: 0,
     };
 };
 
-describe("createSplTokenPolicy", () => {
+describe("createSplTokenValidator", () => {
     describe("instruction allowlist", () => {
         it("should deny instruction when not in config", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {},
             });
 
@@ -55,7 +55,7 @@ describe("createSplTokenPolicy", () => {
         });
 
         it("should explicitly deny instruction when set to false", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.Transfer]: false,
                 },
@@ -73,7 +73,7 @@ describe("createSplTokenPolicy", () => {
         });
 
         it("should allow instruction when set to true", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.Transfer]: true,
                 },
@@ -92,7 +92,7 @@ describe("createSplTokenPolicy", () => {
 
         it("should allow instruction with custom validator function", async () => {
             let validatorCalled = false;
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.Transfer]: async () => {
                         validatorCalled = true;
@@ -116,7 +116,7 @@ describe("createSplTokenPolicy", () => {
 
     describe("Transfer validation", () => {
         it("should allow transfer within limit", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.Transfer]: {
                         maxAmount: 1_000_000n,
@@ -136,7 +136,7 @@ describe("createSplTokenPolicy", () => {
         });
 
         it("should reject transfer exceeding limit", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.Transfer]: {
                         maxAmount: 1_000_000n,
@@ -158,7 +158,7 @@ describe("createSplTokenPolicy", () => {
 
     describe("TransferChecked validation", () => {
         it("should allow transfer with valid mint", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.TransferChecked]: {
                         allowedMints: [MINT],
@@ -180,7 +180,7 @@ describe("createSplTokenPolicy", () => {
         });
 
         it("should reject transfer with non-allowed mint", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.TransferChecked]: {
                         allowedMints: [MINT],
@@ -202,7 +202,7 @@ describe("createSplTokenPolicy", () => {
         });
 
         it("should enforce both amount and mint constraints", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.TransferChecked]: {
                         maxAmount: 1_000_000n,
@@ -248,7 +248,7 @@ describe("createSplTokenPolicy", () => {
 
     describe("Approve validation", () => {
         it("should allow approve within limit", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.Approve]: {
                         maxAmount: 1_000_000n,
@@ -268,7 +268,7 @@ describe("createSplTokenPolicy", () => {
         });
 
         it("should reject approve exceeding limit", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.Approve]: {
                         maxAmount: 1_000_000n,
@@ -288,7 +288,7 @@ describe("createSplTokenPolicy", () => {
         });
 
         it("should allow approve to allowed delegate", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.Approve]: {
                         allowedDelegates: [DELEGATE],
@@ -308,7 +308,7 @@ describe("createSplTokenPolicy", () => {
         });
 
         it("should reject approve to non-allowed delegate", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.Approve]: {
                         allowedDelegates: [DELEGATE],
@@ -330,7 +330,7 @@ describe("createSplTokenPolicy", () => {
 
     describe("ApproveChecked validation", () => {
         it("should enforce all constraints", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.ApproveChecked]: {
                         maxAmount: 1_000_000n,
@@ -388,7 +388,7 @@ describe("createSplTokenPolicy", () => {
 
     describe("MintTo validation", () => {
         it("should allow mint within limit", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.MintTo]: {
                         maxAmount: 1_000_000n,
@@ -408,7 +408,7 @@ describe("createSplTokenPolicy", () => {
         });
 
         it("should reject mint exceeding limit", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.MintTo]: {
                         maxAmount: 1_000_000n,
@@ -428,7 +428,7 @@ describe("createSplTokenPolicy", () => {
         });
 
         it("should allow mint to allowed mint", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.MintTo]: {
                         allowedMints: [MINT],
@@ -448,7 +448,7 @@ describe("createSplTokenPolicy", () => {
         });
 
         it("should reject mint to non-allowed mint", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.MintTo]: {
                         allowedMints: [MINT],
@@ -470,7 +470,7 @@ describe("createSplTokenPolicy", () => {
 
     describe("MintToChecked validation", () => {
         it("should enforce amount and mint constraints", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.MintToChecked]: {
                         maxAmount: 1_000_000n,
@@ -513,7 +513,7 @@ describe("createSplTokenPolicy", () => {
 
     describe("Burn validation", () => {
         it("should allow burn within limit", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.Burn]: {
                         maxAmount: 1_000_000n,
@@ -533,7 +533,7 @@ describe("createSplTokenPolicy", () => {
         });
 
         it("should reject burn exceeding limit", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.Burn]: {
                         maxAmount: 1_000_000n,
@@ -555,7 +555,7 @@ describe("createSplTokenPolicy", () => {
 
     describe("BurnChecked validation", () => {
         it("should enforce amount and mint constraints", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.BurnChecked]: {
                         maxAmount: 1_000_000n,
@@ -598,7 +598,7 @@ describe("createSplTokenPolicy", () => {
 
     describe("SetAuthority validation", () => {
         it("should allow authority type in allowlist", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.SetAuthority]: {
                         allowedAuthorityTypes: [0, 1], // MintTokens, FreezeAccount
@@ -618,7 +618,7 @@ describe("createSplTokenPolicy", () => {
         });
 
         it("should reject authority type not in allowlist", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.SetAuthority]: {
                         allowedAuthorityTypes: [0, 1],
@@ -640,7 +640,7 @@ describe("createSplTokenPolicy", () => {
 
     describe("simple instructions", () => {
         it("should allow Revoke when configured", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.Revoke]: true,
                 },
@@ -656,7 +656,7 @@ describe("createSplTokenPolicy", () => {
         });
 
         it("should allow CloseAccount when configured", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.CloseAccount]: true,
                 },
@@ -676,7 +676,7 @@ describe("createSplTokenPolicy", () => {
     describe("custom validators", () => {
         it("should run program-level custom validator", async () => {
             let customValidatorCalled = false;
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.Transfer]: {
                         maxAmount: 1_000_000n,
@@ -701,7 +701,7 @@ describe("createSplTokenPolicy", () => {
 
         it("should not run custom validator if validation fails", async () => {
             let customValidatorCalled = false;
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.Transfer]: {
                         maxAmount: 1_000_000n,
@@ -725,7 +725,7 @@ describe("createSplTokenPolicy", () => {
         });
 
         it("should return custom validator error", async () => {
-            const policy = createSplTokenPolicy({
+            const policy = createSplTokenValidator({
                 instructions: {
                     [TokenInstruction.Transfer]: true,
                 },

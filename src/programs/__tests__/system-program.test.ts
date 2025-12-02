@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { createSystemProgramPolicy, SystemInstruction } from "../system-program.js";
-import type { InstructionPolicyContext } from "../../types.js";
+import { createSystemProgramValidator, SystemInstruction } from "../system-program.js";
+import type { InstructionValidationContext } from "../../types.js";
 import { address, type Address, type Instruction } from "@solana/kit";
 import {
     getTransferSolInstruction,
@@ -17,12 +17,12 @@ const PROGRAM_OWNER = address("11111111111111111111111111111115");
 const ANOTHER_OWNER = address("11111111111111111111111111111116");
 
 // Helper to create a mock instruction context
-const createMockContext = (instruction: Instruction): InstructionPolicyContext => {
+const createMockContext = (instruction: Instruction): InstructionValidationContext => {
     return {
         signer: SIGNER,
-        transaction: {} as InstructionPolicyContext["transaction"],
-        decompiledMessage: {} as InstructionPolicyContext["decompiledMessage"],
-        instruction: instruction as InstructionPolicyContext["instruction"],
+        transaction: {} as InstructionValidationContext["transaction"],
+        decompiledMessage: {} as InstructionValidationContext["decompiledMessage"],
+        instruction: instruction as InstructionValidationContext["instruction"],
         instructionIndex: 0,
     };
 };
@@ -82,10 +82,10 @@ const createAllocateInstruction = (space: bigint) => {
     });
 };
 
-describe("createSystemProgramPolicy", () => {
+describe("createSystemProgramValidator", () => {
     describe("instruction allowlist", () => {
         it("should deny instruction when not in config", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     // TransferSol is omitted
                 },
@@ -98,7 +98,7 @@ describe("createSystemProgramPolicy", () => {
         });
 
         it("should allow instruction when set to true", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.TransferSol]: true,
                 },
@@ -111,7 +111,7 @@ describe("createSystemProgramPolicy", () => {
         });
 
         it("should allow instruction when config object provided", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.TransferSol]: {},
                 },
@@ -126,7 +126,7 @@ describe("createSystemProgramPolicy", () => {
 
     describe("TransferSol validation", () => {
         it("should allow transfer within limit", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.TransferSol]: {
                         maxLamports: 1_000_000n,
@@ -141,7 +141,7 @@ describe("createSystemProgramPolicy", () => {
         });
 
         it("should allow transfer at exact limit", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.TransferSol]: {
                         maxLamports: 1_000_000n,
@@ -156,7 +156,7 @@ describe("createSystemProgramPolicy", () => {
         });
 
         it("should reject transfer exceeding limit", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.TransferSol]: {
                         maxLamports: 1_000_000n,
@@ -172,7 +172,7 @@ describe("createSystemProgramPolicy", () => {
         });
 
         it("should allow transfer to allowed destination", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.TransferSol]: {
                         allowedDestinations: [DESTINATION],
@@ -187,7 +187,7 @@ describe("createSystemProgramPolicy", () => {
         });
 
         it("should reject transfer to non-allowed destination", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.TransferSol]: {
                         allowedDestinations: [DESTINATION],
@@ -202,7 +202,7 @@ describe("createSystemProgramPolicy", () => {
         });
 
         it("should enforce both amount and destination constraints", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.TransferSol]: {
                         maxLamports: 1_000_000n,
@@ -227,7 +227,7 @@ describe("createSystemProgramPolicy", () => {
 
     describe("CreateAccount validation", () => {
         it("should allow create account within limits", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.CreateAccount]: {
                         maxLamports: 1_000_000_000n,
@@ -243,7 +243,7 @@ describe("createSystemProgramPolicy", () => {
         });
 
         it("should reject create account exceeding lamports limit", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.CreateAccount]: {
                         maxLamports: 1_000_000_000n,
@@ -259,7 +259,7 @@ describe("createSystemProgramPolicy", () => {
         });
 
         it("should reject create account exceeding space limit", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.CreateAccount]: {
                         maxSpace: 1000n,
@@ -275,7 +275,7 @@ describe("createSystemProgramPolicy", () => {
         });
 
         it("should allow create account with allowed owner program", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.CreateAccount]: {
                         allowedOwnerPrograms: [PROGRAM_OWNER],
@@ -290,7 +290,7 @@ describe("createSystemProgramPolicy", () => {
         });
 
         it("should reject create account with non-allowed owner program", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.CreateAccount]: {
                         allowedOwnerPrograms: [PROGRAM_OWNER],
@@ -308,7 +308,7 @@ describe("createSystemProgramPolicy", () => {
 
     describe("Assign validation", () => {
         it("should allow assign with allowed owner program", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.Assign]: {
                         allowedOwnerPrograms: [PROGRAM_OWNER],
@@ -323,7 +323,7 @@ describe("createSystemProgramPolicy", () => {
         });
 
         it("should reject assign with non-allowed owner program", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.Assign]: {
                         allowedOwnerPrograms: [PROGRAM_OWNER],
@@ -341,7 +341,7 @@ describe("createSystemProgramPolicy", () => {
 
     describe("Allocate validation", () => {
         it("should allow allocate within space limit", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.Allocate]: {
                         maxSpace: 1000n,
@@ -356,7 +356,7 @@ describe("createSystemProgramPolicy", () => {
         });
 
         it("should reject allocate exceeding space limit", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.Allocate]: {
                         maxSpace: 1000n,
@@ -375,7 +375,7 @@ describe("createSystemProgramPolicy", () => {
     describe("custom validator", () => {
         it("should run custom validator after built-in validation", async () => {
             let customValidatorCalled = false;
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.TransferSol]: {
                         maxLamports: 1_000_000n,
@@ -395,7 +395,7 @@ describe("createSystemProgramPolicy", () => {
 
         it("should not run custom validator if built-in validation fails", async () => {
             let customValidatorCalled = false;
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.TransferSol]: {
                         maxLamports: 1_000_000n,
@@ -414,7 +414,7 @@ describe("createSystemProgramPolicy", () => {
         });
 
         it("should return custom validator error", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.TransferSol]: true,
                 },
@@ -430,7 +430,7 @@ describe("createSystemProgramPolicy", () => {
 
     describe("program address validation", () => {
         it("should throw error for instruction from wrong program", async () => {
-            const policy = createSystemProgramPolicy({
+            const policy = createSystemProgramValidator({
                 instructions: {
                     [SystemInstruction.TransferSol]: true,
                 },

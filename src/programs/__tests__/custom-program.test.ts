@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { createCustomProgramPolicy } from "../custom-program.js";
-import type { InstructionPolicyContext } from "../../types.js";
+import { createCustomProgramValidator } from "../custom-program.js";
+import type { InstructionValidationContext } from "../../types.js";
 import { address, type Address } from "@solana/kit";
 
 // Use valid base58 addresses (44 chars for 32 bytes, no 0, O, I, l)
@@ -9,11 +9,11 @@ const PROGRAM_ADDRESS = address("11111111111111111111111111111112");
 const ANOTHER_PROGRAM = address("11111111111111111111111111111113");
 const SIGNER_ADDRESS = address("11111111111111111111111111111114");
 
-const createMockContext = (programAddress: Address, data: Uint8Array): InstructionPolicyContext => {
+const createMockContext = (programAddress: Address, data: Uint8Array): InstructionValidationContext => {
     return {
         signer: SIGNER_ADDRESS,
-        transaction: {} as InstructionPolicyContext["transaction"],
-        decompiledMessage: {} as InstructionPolicyContext["decompiledMessage"],
+        transaction: {} as InstructionValidationContext["transaction"],
+        decompiledMessage: {} as InstructionValidationContext["decompiledMessage"],
         instruction: {
             programAddress,
             data,
@@ -23,10 +23,10 @@ const createMockContext = (programAddress: Address, data: Uint8Array): Instructi
     };
 };
 
-describe("createCustomProgramPolicy", () => {
+describe("createCustomProgramValidator", () => {
     describe("discriminator matching", () => {
         it("should allow instruction with exact match", async () => {
-            const policy = createCustomProgramPolicy({
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [
                     { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "exact" },
@@ -39,7 +39,7 @@ describe("createCustomProgramPolicy", () => {
         });
 
         it("should reject instruction when exact match fails due to extra bytes", async () => {
-            const policy = createCustomProgramPolicy({
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [
                     { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "exact" },
@@ -52,7 +52,7 @@ describe("createCustomProgramPolicy", () => {
         });
 
         it("should allow instruction with prefix match", async () => {
-            const policy = createCustomProgramPolicy({
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [
                     { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
@@ -68,7 +68,7 @@ describe("createCustomProgramPolicy", () => {
         });
 
         it("should allow instruction when prefix matches exactly", async () => {
-            const policy = createCustomProgramPolicy({
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [
                     { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
@@ -81,7 +81,7 @@ describe("createCustomProgramPolicy", () => {
         });
 
         it("should reject instruction when prefix does not match", async () => {
-            const policy = createCustomProgramPolicy({
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [
                     { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
@@ -94,7 +94,7 @@ describe("createCustomProgramPolicy", () => {
         });
 
         it("should allow instruction matching any of multiple rules", async () => {
-            const policy = createCustomProgramPolicy({
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [
                     { discriminator: new Uint8Array([1, 0, 0, 0]), matchMode: "prefix" },
@@ -113,7 +113,7 @@ describe("createCustomProgramPolicy", () => {
         });
 
         it("should reject instruction not matching any rule", async () => {
-            const policy = createCustomProgramPolicy({
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [
                     { discriminator: new Uint8Array([1, 0, 0, 0]), matchMode: "prefix" },
@@ -127,7 +127,7 @@ describe("createCustomProgramPolicy", () => {
         });
 
         it("should support mixed exact and prefix rules", async () => {
-            const policy = createCustomProgramPolicy({
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [
                     { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "exact" },
@@ -151,7 +151,7 @@ describe("createCustomProgramPolicy", () => {
 
     describe("program address validation", () => {
         it("should reject instruction from wrong program", async () => {
-            const policy = createCustomProgramPolicy({
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [
                     { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
@@ -167,7 +167,7 @@ describe("createCustomProgramPolicy", () => {
     describe("custom validator", () => {
         it("should run custom validator after discriminator check passes", async () => {
             let validatorCalled = false;
-            const policy = createCustomProgramPolicy({
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [
                     { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
@@ -185,7 +185,7 @@ describe("createCustomProgramPolicy", () => {
 
         it("should not run custom validator if discriminator check fails", async () => {
             let validatorCalled = false;
-            const policy = createCustomProgramPolicy({
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [
                     { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
@@ -202,7 +202,7 @@ describe("createCustomProgramPolicy", () => {
         });
 
         it("should return custom validator error", async () => {
-            const policy = createCustomProgramPolicy({
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [
                     { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
@@ -216,7 +216,7 @@ describe("createCustomProgramPolicy", () => {
         });
 
         it("should handle async custom validator", async () => {
-            const policy = createCustomProgramPolicy({
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [
                     { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
@@ -233,8 +233,8 @@ describe("createCustomProgramPolicy", () => {
         });
 
         it("should pass context to custom validator", async () => {
-            let receivedCtx: InstructionPolicyContext | null = null;
-            const policy = createCustomProgramPolicy({
+            let receivedCtx: InstructionValidationContext | null = null;
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [
                     { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
@@ -253,7 +253,7 @@ describe("createCustomProgramPolicy", () => {
 
     describe("error messages", () => {
         it("should include discriminator preview in error message", async () => {
-            const policy = createCustomProgramPolicy({
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [],
             });
@@ -267,7 +267,7 @@ describe("createCustomProgramPolicy", () => {
         });
 
         it("should truncate long discriminators in error message", async () => {
-            const policy = createCustomProgramPolicy({
+            const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
                 allowedInstructions: [],
             });

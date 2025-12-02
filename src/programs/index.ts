@@ -6,11 +6,11 @@ export * from "./custom-program.js";
 
 // System Program
 export {
-    createSystemProgramPolicy,
+    createSystemProgramValidator,
     SYSTEM_PROGRAM_ADDRESS,
     SystemInstruction,
     type SystemProgramPolicyConfig,
-    type SystemProgramPolicyContext,
+    type SystemProgramValidationContext,
     type SystemInstructionConfigs,
     type TransferSolConfig,
     type CreateAccountConfig,
@@ -20,11 +20,11 @@ export {
 
 // SPL Token
 export {
-    createSplTokenPolicy,
+    createSplTokenValidator,
     TOKEN_PROGRAM_ADDRESS,
     TokenInstruction,
     type SplTokenPolicyConfig,
-    type SplTokenPolicyContext,
+    type SplTokenValidationContext,
     type TokenInstructionConfigs,
     type TransferConfig as SplTokenTransferConfig,
     type ApproveConfig as SplTokenApproveConfig,
@@ -35,11 +35,11 @@ export {
 
 // Token-2022
 export {
-    createToken2022Policy,
+    createToken2022Validator,
     TOKEN_2022_PROGRAM_ADDRESS,
     Token2022Instruction,
     type Token2022PolicyConfig,
-    type Token2022PolicyContext,
+    type Token2022ValidationContext,
     type TransferConfig as Token2022TransferConfig,
     type ApproveConfig as Token2022ApproveConfig,
     type MintToConfig as Token2022MintToConfig,
@@ -49,11 +49,11 @@ export {
 
 // Compute Budget
 export {
-    createComputeBudgetPolicy,
+    createComputeBudgetValidator,
     COMPUTE_BUDGET_PROGRAM_ADDRESS,
     ComputeBudgetInstruction,
     type ComputeBudgetPolicyConfig,
-    type ComputeBudgetPolicyContext,
+    type ComputeBudgetValidationContext,
     type ComputeBudgetInstructionConfigs,
     type SetComputeUnitLimitConfig,
     type SetComputeUnitPriceConfig,
@@ -62,9 +62,9 @@ export {
 
 // Memo
 export {
-    createMemoPolicy,
+    createMemoValidator,
     MEMO_PROGRAM_ADDRESS,
     type MemoPolicyConfig,
-    type MemoPolicyContext,
+    type MemoValidationContext,
     type MemoConfig,
 } from "./memo.js";

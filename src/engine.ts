@@ -8,15 +8,15 @@ import type {
     SolanaRpcApi,
 } from "@solana/kit";
 import type {
-    BasePolicyContext,
+    BaseValidationContext,
     GlobalPolicyConfig,
-    GlobalPolicyContext,
-    InstructionPolicyContext,
-    PolicyResult,
-    ProgramPolicy,
+    GlobalValidationContext,
+    InstructionValidationContext,
+    ValidationResult,
+    ProgramValidator,
     SimulationConstraints,
 } from "./types.js";
-import { PolicyValidationError } from "./errors.js";
+import { ValidationError } from "./errors.js";
 import { validateGlobalPolicy } from "./global/validator.js";
 import { validateSimulation } from "./simulation/validator.js";
 
@@ -32,16 +32,19 @@ export interface SimulationConfig {
     constraints: SimulationConstraints;
 }
 
-export interface PolicyEngineConfig {
-    /** Global constraints applied to all transactions (REQUIRED) */
+/**
+ * Configuration for creating a transaction validator.
+ */
+export interface TransactionValidatorConfig {
+    /** Global policy configuration applied to all transactions (REQUIRED) */
     global: GlobalPolicyConfig;
 
     /**
-     * Array of program policies to enforce.
-     * Each policy is self-contained with its program address and validation logic.
+     * Array of program validators to enforce.
+     * Each validator is self-contained with its program address and validation logic.
      * Programs not in this list are denied by default (strict allowlist).
      */
-    programs?: ProgramPolicy[];
+    programs?: ProgramValidator[];
 
     /**
      * Optional simulation-based validation.
@@ -52,38 +55,40 @@ export interface PolicyEngineConfig {
 
 /**
  * A function that validates a transaction against the configured policies.
- * Throws PolicyValidationError if validation fails.
+ * Throws ValidationError if validation fails.
  */
 export type TransactionValidator = (
     transaction: CompiledTransactionMessage & CompiledTransactionMessageWithLifetime,
-    baseContext: BasePolicyContext,
+    baseContext: BaseValidationContext,
 ) => Promise<void>;
 
 /**
- * Creates a validation function that enforces the configured policies.
+ * Creates a transaction validator that enforces the configured policies.
  *
- * @param config - The policy configuration
+ * @param config - The validator configuration
  * @returns A validation function that can be reused for multiple requests
  */
-export function createPolicyValidator(config: PolicyEngineConfig): TransactionValidator {
+export function createTransactionValidator(
+    config: TransactionValidatorConfig,
+): TransactionValidator {
     // Build internal map from array for efficient lookup
-    const programMap = new Map<Address, ProgramPolicy>();
-    for (const policy of config.programs ?? []) {
-        if (programMap.has(policy.programAddress)) {
-            throw new Error(`Duplicate program policy for ${policy.programAddress}`);
+    const programMap = new Map<Address, ProgramValidator>();
+    for (const validator of config.programs ?? []) {
+        if (programMap.has(validator.programAddress)) {
+            throw new Error(`Duplicate program validator for ${validator.programAddress}`);
         }
-        programMap.set(policy.programAddress, policy);
+        programMap.set(validator.programAddress, validator);
     }
 
     return async function validateTransaction(
         transaction: CompiledTransactionMessage & CompiledTransactionMessageWithLifetime,
-        baseContext: BasePolicyContext,
+        baseContext: BaseValidationContext,
     ): Promise<void> {
         // Decompile once at the start
         const decompiledMessage = decompileTransactionMessage(transaction);
 
         // Construct global context
-        const globalCtx: GlobalPolicyContext = {
+        const globalCtx: GlobalValidationContext = {
             ...baseContext,
             transaction,
             decompiledMessage,
@@ -96,26 +101,26 @@ export function createPolicyValidator(config: PolicyEngineConfig): TransactionVa
         // 2. Validate Required Programs and Instructions
         validateRequiredPrograms(programMap, decompiledMessage.instructions);
 
-        // 3. Instruction Policies
+        // 3. Instruction Validation
         for (const [index, ix] of decompiledMessage.instructions.entries()) {
             const programId = ix.programAddress;
-            const policy = programMap.get(programId);
+            const validator = programMap.get(programId);
 
-            if (policy) {
-                // Found specific policy for this program
-                const ixCtx: InstructionPolicyContext = {
+            if (validator) {
+                // Found specific validator for this program
+                const ixCtx: InstructionValidationContext = {
                     ...globalCtx,
                     instruction: ix,
                     instructionIndex: index,
                 };
-                const result = await policy.validate(ixCtx);
+                const result = await validator.validate(ixCtx);
                 assertAllowed(
                     result,
-                    `Policy for program ${programId} rejected instruction ${index}`,
+                    `Validator for program ${programId} rejected instruction ${index}`,
                 );
             } else {
                 // Unknown program is always denied (strict allowlist)
-                throw new PolicyValidationError(
+                throw new ValidationError(
                     `Instruction ${index} uses unauthorized program ${programId}`,
                 );
             }
@@ -137,7 +142,7 @@ export function createPolicyValidator(config: PolicyEngineConfig): TransactionVa
  * Validates that required programs and instructions are present in the transaction.
  */
 function validateRequiredPrograms(
-    programMap: Map<Address, ProgramPolicy>,
+    programMap: Map<Address, ProgramValidator>,
     instructions: readonly Instruction[],
 ): void {
     // Build a map of program -> instruction discriminators present
@@ -153,30 +158,30 @@ function validateRequiredPrograms(
         }
     }
 
-    // Check each program policy for requirements
-    for (const [programId, policy] of programMap) {
-        if (!policy.required) continue;
+    // Check each program validator for requirements
+    for (const [programId, validator] of programMap) {
+        if (!validator.required) continue;
 
         const presentInstructions = programInstructions.get(programId);
 
-        if (policy.required === true) {
+        if (validator.required === true) {
             // Program must be present
             if (!presentInstructions) {
-                throw new PolicyValidationError(
+                throw new ValidationError(
                     `Required program ${programId} is not present in transaction`,
                 );
             }
-        } else if (Array.isArray(policy.required)) {
+        } else if (Array.isArray(validator.required)) {
             // Program must be present with specific instructions
             if (!presentInstructions) {
-                throw new PolicyValidationError(
+                throw new ValidationError(
                     `Required program ${programId} is not present in transaction`,
                 );
             }
 
-            for (const requiredIx of policy.required) {
+            for (const requiredIx of validator.required) {
                 if (!presentInstructions.has(requiredIx)) {
-                    throw new PolicyValidationError(
+                    throw new ValidationError(
                         `Required instruction ${requiredIx} for program ${programId} is not present`,
                     );
                 }
@@ -185,8 +190,8 @@ function validateRequiredPrograms(
     }
 }
 
-function assertAllowed(result: PolicyResult, defaultMessage: string): void {
+function assertAllowed(result: ValidationResult, defaultMessage: string): void {
     if (result === true) return;
     const message = typeof result === "string" ? result : defaultMessage;
-    throw new PolicyValidationError(message);
+    throw new ValidationError(message);
 }

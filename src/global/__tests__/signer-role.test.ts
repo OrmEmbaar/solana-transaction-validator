@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { validateSignerRole } from "../signer-role.js";
-import { SignerRole, type GlobalPolicyContext } from "../../types.js";
+import { SignerRole, type GlobalValidationContext } from "../../types.js";
 import {
     address,
     compileTransactionMessage,
@@ -17,7 +17,7 @@ const createContext = (
     signerAddr: string,
     feePayerAddr: string,
     signerAsAccount = false,
-): GlobalPolicyContext => {
+): GlobalValidationContext => {
     const blockhash = {
         blockhash: "5c9TGe5te815W476jY7Z96PE5844626366663444346134646261393166" as Blockhash,
         lastValidBlockHeight: BigInt(0),

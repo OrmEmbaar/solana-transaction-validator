@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { validateGlobalPolicy } from "../validator.js";
-import type { GlobalPolicyConfig, GlobalPolicyContext } from "../../types.js";
+import type { GlobalPolicyConfig, GlobalValidationContext } from "../../types.js";
 import { SignerRole } from "../../types.js";
 import {
     address,
@@ -20,7 +20,7 @@ const createTestContext = (
     signerAddr = "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
     feePayerAddr = "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
     numInstructions = 1,
-): GlobalPolicyContext => {
+): GlobalValidationContext => {
     const blockhash = {
         blockhash: "5c9TGe5te815W476jY7Z96PE5844626366663444346134646261393166" as Blockhash,
         lastValidBlockHeight: BigInt(0),
@@ -169,7 +169,7 @@ describe("validateGlobalPolicy", () => {
             );
             const compiled = compileTransactionMessage(msg);
             const decompiledMessage = decompileTransactionMessage(compiled);
-            const ctxAsParticipant: GlobalPolicyContext = {
+            const ctxAsParticipant: GlobalValidationContext = {
                 signer: address(signerAddr),
                 transaction: compiled,
                 decompiledMessage,

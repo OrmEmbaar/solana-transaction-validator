@@ -9,9 +9,9 @@ import type {
 } from "@solana/kit";
 
 /**
- * Base context shared by all policy validators.
+ * Base context shared by all validators.
  */
-export interface BasePolicyContext {
+export interface BaseValidationContext {
     /** The authenticated principal requesting the signature */
     principal?: string;
 
@@ -23,9 +23,9 @@ export interface BasePolicyContext {
 }
 
 /**
- * Context for global policies (full transaction access).
+ * Context for global validation (full transaction access).
  */
-export interface GlobalPolicyContext extends BasePolicyContext {
+export interface GlobalValidationContext extends BaseValidationContext {
     /** The compiled transaction message (low-level) */
     transaction: CompiledTransactionMessage;
 
@@ -39,14 +39,14 @@ export interface GlobalPolicyContext extends BasePolicyContext {
 }
 
 /**
- * Context for instruction-level policies.
+ * Context for instruction-level validation.
  * Generic version that allows narrowing to specific program addresses.
  *
  * @template TProgramAddress - The program address type (narrows the instruction)
  */
-export interface InstructionPolicyContext<
+export interface InstructionValidationContext<
     TProgramAddress extends string = string,
-> extends GlobalPolicyContext {
+> extends GlobalValidationContext {
     /** The specific instruction being validated */
     instruction: Instruction<TProgramAddress>;
 
@@ -55,12 +55,12 @@ export interface InstructionPolicyContext<
 }
 
 /**
- * Result of a policy validation.
+ * Result of a validation.
  * - true: Allowed
  * - false: Denied (generic)
  * - string: Denied with reason
  */
-export type PolicyResult = boolean | string;
+export type ValidationResult = boolean | string;
 
 /**
  * Custom validation callback with program-specific typing.
@@ -68,8 +68,8 @@ export type PolicyResult = boolean | string;
  * @template TProgramAddress - The program address type for narrowing
  */
 export type CustomValidationCallback<TProgramAddress extends string = string> = (
-    ctx: InstructionPolicyContext<TProgramAddress>,
-) => Promise<PolicyResult> | PolicyResult;
+    ctx: InstructionValidationContext<TProgramAddress>,
+) => Promise<ValidationResult> | ValidationResult;
 
 /**
  * Role the signer can play in a transaction.
@@ -163,31 +163,31 @@ export interface SimulationConstraints {
 }
 
 /**
- * A global policy validates the entire transaction context.
+ * A global validator validates the entire transaction context.
  */
-export interface GlobalPolicy {
-    validate(ctx: GlobalPolicyContext): Promise<PolicyResult> | PolicyResult;
+export interface GlobalValidator {
+    validate(ctx: GlobalValidationContext): Promise<ValidationResult> | ValidationResult;
 }
 
 /**
- * An instruction policy validates a single instruction.
+ * An instruction validator validates a single instruction.
  */
-export interface InstructionPolicy {
-    validate(ctx: InstructionPolicyContext): Promise<PolicyResult> | PolicyResult;
+export interface InstructionValidator {
+    validate(ctx: InstructionValidationContext): Promise<ValidationResult> | ValidationResult;
 }
 
 /**
- * A program-specific policy for instruction-level validation.
+ * A program-specific validator for instruction-level validation.
  */
-export interface ProgramPolicy extends InstructionPolicy {
-    /** The program ID this policy applies to */
+export interface ProgramValidator extends InstructionValidator {
+    /** The program ID this validator applies to */
     programAddress: Address;
 
     /**
      * Requirements for this program in the transaction.
      * - `true`: Program MUST be present in the transaction.
      * - Array: Program MUST be present AND contain these instruction discriminators.
-     * - `undefined`: Program is optional (policy runs only if present).
+     * - `undefined`: Program is optional (validator runs only if present).
      */
     required?: boolean | (number | string)[];
 }

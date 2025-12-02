@@ -1,4 +1,4 @@
-import type { GlobalPolicyContext, PolicyResult } from "../types.js";
+import type { GlobalValidationContext, ValidationResult } from "../types.js";
 
 /**
  * Transaction version type.
@@ -14,7 +14,7 @@ export type TransactionVersion = 0 | "legacy";
  * @param ctx - The global policy context
  * @returns The detected transaction version
  */
-export function detectTransactionVersion(ctx: GlobalPolicyContext): TransactionVersion {
+export function detectTransactionVersion(ctx: GlobalValidationContext): TransactionVersion {
     // v0 transactions have addressTableLookups property defined
     // Legacy transactions don't have this property at all
     return "addressTableLookups" in ctx.transaction ? 0 : "legacy";
@@ -25,12 +25,12 @@ export function detectTransactionVersion(ctx: GlobalPolicyContext): TransactionV
  *
  * @param allowedVersions - List of allowed versions (default: [0])
  * @param ctx - The global policy context
- * @returns PolicyResult (true if allowed, string with reason if denied)
+ * @returns ValidationResult (true if allowed, string with reason if denied)
  */
 export function validateTransactionVersion(
     allowedVersions: TransactionVersion[] | undefined,
-    ctx: GlobalPolicyContext,
-): PolicyResult {
+    ctx: GlobalValidationContext,
+): ValidationResult {
     // Default: Only v0 transactions allowed (modern standard)
     const versions = allowedVersions ?? [0];
 

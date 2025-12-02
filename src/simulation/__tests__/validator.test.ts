@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { validateSimulation } from "../validator.js";
-import type { GlobalPolicyContext } from "../../types.js";
+import type { GlobalValidationContext } from "../../types.js";
 import type { Rpc, SolanaRpcApi, Address } from "@solana/kit";
 import {
     address,
@@ -27,7 +27,7 @@ function createMockRpc(simulationResponse: any): Rpc<SolanaRpcApi> {
 // Helper to create test context
 function createTestContext(
     signerAddr = "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
-): GlobalPolicyContext {
+): GlobalValidationContext {
     const blockhash = {
         blockhash: "5c9TGe5te815W476jY7Z96PE5844626366663444346134646261393166" as Blockhash,
         lastValidBlockHeight: BigInt(0),

@@ -23,9 +23,9 @@ import {
     parseSetAuthorityInstruction,
 } from "@solana-program/token";
 import type {
-    InstructionPolicyContext,
-    PolicyResult,
-    ProgramPolicy,
+    InstructionValidationContext,
+    ValidationResult,
+    ProgramValidator,
     ProgramPolicyConfig,
 } from "../types.js";
 import { runCustomValidator } from "./utils.js";
@@ -34,7 +34,7 @@ import { runCustomValidator } from "./utils.js";
 export { TOKEN_PROGRAM_ADDRESS, TokenInstruction };
 
 // Program-specific context type
-export type SplTokenPolicyContext = InstructionPolicyContext<typeof TOKEN_PROGRAM_ADDRESS>;
+export type SplTokenValidationContext = InstructionValidationContext<typeof TOKEN_PROGRAM_ADDRESS>;
 
 // Type for a fully validated instruction
 type ValidatedInstruction = Instruction &
@@ -159,11 +159,11 @@ export interface SplTokenPolicyConfig extends ProgramPolicyConfig<
  * and parsing, ensuring accurate discriminator matching and data extraction.
  *
  * @param config - The SPL Token policy configuration
- * @returns A ProgramPolicy that validates SPL Token instructions
+ * @returns A ProgramValidator that validates SPL Token instructions
  *
  * @example
  * ```typescript
- * const tokenPolicy = createSplTokenPolicy({
+ * const tokenPolicy = createSplTokenValidator({
  *     instructions: {
  *         // Declarative: use built-in constraints
  *         [TokenInstruction.Transfer]: {
@@ -183,18 +183,18 @@ export interface SplTokenPolicyConfig extends ProgramPolicyConfig<
  * });
  * ```
  */
-export function createSplTokenPolicy(config: SplTokenPolicyConfig): ProgramPolicy {
+export function createSplTokenValidator(config: SplTokenPolicyConfig): ProgramValidator {
     return {
         programAddress: TOKEN_PROGRAM_ADDRESS,
         required: config.required,
-        async validate(ctx: InstructionPolicyContext): Promise<PolicyResult> {
+        async validate(ctx: InstructionValidationContext): Promise<ValidationResult> {
             // Assert this is a valid Token Program instruction with data and accounts
             assertIsInstructionForProgram(ctx.instruction, TOKEN_PROGRAM_ADDRESS);
             assertIsInstructionWithData(ctx.instruction);
             assertIsInstructionWithAccounts(ctx.instruction);
 
             // After assertions, context is now typed for SPL Token Program
-            const typedCtx = ctx as SplTokenPolicyContext;
+            const typedCtx = ctx as SplTokenValidationContext;
             const ix = typedCtx.instruction as ValidatedInstruction;
 
             // Identify the instruction type
@@ -243,7 +243,7 @@ function validateInstruction(
     ixType: TokenInstruction,
     ixConfig: InstructionConfig,
     ix: ValidatedInstruction,
-): PolicyResult {
+): ValidationResult {
     switch (ixType) {
         case TokenInstruction.Transfer:
             return validateTransfer(ixConfig as TransferConfig, ix);
@@ -296,7 +296,7 @@ function validateInstruction(
     }
 }
 
-function validateTransfer(config: TransferConfig, ix: ValidatedInstruction): PolicyResult {
+function validateTransfer(config: TransferConfig, ix: ValidatedInstruction): ValidationResult {
     const parsed = parseTransferInstruction(ix);
 
     if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
@@ -309,7 +309,7 @@ function validateTransfer(config: TransferConfig, ix: ValidatedInstruction): Pol
     return true;
 }
 
-function validateTransferChecked(config: TransferConfig, ix: ValidatedInstruction): PolicyResult {
+function validateTransferChecked(config: TransferConfig, ix: ValidatedInstruction): ValidationResult {
     const parsed = parseTransferCheckedInstruction(ix);
 
     if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
@@ -326,7 +326,7 @@ function validateTransferChecked(config: TransferConfig, ix: ValidatedInstructio
     return true;
 }
 
-function validateApprove(config: ApproveConfig, ix: ValidatedInstruction): PolicyResult {
+function validateApprove(config: ApproveConfig, ix: ValidatedInstruction): ValidationResult {
     const parsed = parseApproveInstruction(ix);
 
     if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
@@ -346,7 +346,7 @@ function validateApprove(config: ApproveConfig, ix: ValidatedInstruction): Polic
     return true;
 }
 
-function validateApproveChecked(config: ApproveConfig, ix: ValidatedInstruction): PolicyResult {
+function validateApproveChecked(config: ApproveConfig, ix: ValidatedInstruction): ValidationResult {
     const parsed = parseApproveCheckedInstruction(ix);
 
     if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
@@ -370,7 +370,7 @@ function validateApproveChecked(config: ApproveConfig, ix: ValidatedInstruction)
     return true;
 }
 
-function validateMintTo(config: MintToConfig, ix: ValidatedInstruction): PolicyResult {
+function validateMintTo(config: MintToConfig, ix: ValidatedInstruction): ValidationResult {
     const parsed = parseMintToInstruction(ix);
 
     if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
@@ -387,7 +387,7 @@ function validateMintTo(config: MintToConfig, ix: ValidatedInstruction): PolicyR
     return true;
 }
 
-function validateMintToChecked(config: MintToConfig, ix: ValidatedInstruction): PolicyResult {
+function validateMintToChecked(config: MintToConfig, ix: ValidatedInstruction): ValidationResult {
     const parsed = parseMintToCheckedInstruction(ix);
 
     if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
@@ -404,7 +404,7 @@ function validateMintToChecked(config: MintToConfig, ix: ValidatedInstruction): 
     return true;
 }
 
-function validateBurn(config: BurnConfig, ix: ValidatedInstruction): PolicyResult {
+function validateBurn(config: BurnConfig, ix: ValidatedInstruction): ValidationResult {
     const parsed = parseBurnInstruction(ix);
 
     if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
@@ -417,7 +417,7 @@ function validateBurn(config: BurnConfig, ix: ValidatedInstruction): PolicyResul
     return true;
 }
 
-function validateBurnChecked(config: BurnConfig, ix: ValidatedInstruction): PolicyResult {
+function validateBurnChecked(config: BurnConfig, ix: ValidatedInstruction): ValidationResult {
     const parsed = parseBurnCheckedInstruction(ix);
 
     if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
@@ -434,7 +434,7 @@ function validateBurnChecked(config: BurnConfig, ix: ValidatedInstruction): Poli
     return true;
 }
 
-function validateSetAuthority(config: SetAuthorityConfig, ix: ValidatedInstruction): PolicyResult {
+function validateSetAuthority(config: SetAuthorityConfig, ix: ValidatedInstruction): ValidationResult {
     const parsed = parseSetAuthorityInstruction(ix);
 
     if (config.allowedAuthorityTypes !== undefined) {

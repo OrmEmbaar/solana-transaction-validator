@@ -1,5 +1,5 @@
 import { type Address, type ReadonlyUint8Array, assertIsInstructionWithData } from "@solana/kit";
-import type { InstructionPolicyContext, PolicyResult, ProgramPolicy } from "../types.js";
+import type { InstructionValidationContext, ValidationResult, ProgramValidator } from "../types.js";
 import {
     arraysEqual,
     hasPrefix,
@@ -49,11 +49,11 @@ export interface CustomProgramPolicyConfig {
  * - Quick prototyping without needing to decode instruction data
  *
  * @param config - The custom program policy configuration
- * @returns A ProgramPolicy that validates instructions against the allowlist
+ * @returns A ProgramValidator that validates instructions against the allowlist
  *
  * @example
  * ```typescript
- * const myProgramPolicy = createCustomProgramPolicy({
+ * const myProgramValidator = createCustomProgramValidator({
  *     programAddress: address("MyProgram111111111111111111111111111111111"),
  *     allowedInstructions: [
  *         { discriminator: new Uint8Array([0, 1, 2, 3]), matchMode: 'prefix' },
@@ -67,11 +67,11 @@ export interface CustomProgramPolicyConfig {
  * });
  * ```
  */
-export function createCustomProgramPolicy(config: CustomProgramPolicyConfig): ProgramPolicy {
+export function createCustomProgramValidator(config: CustomProgramPolicyConfig): ProgramValidator {
     return {
         programAddress: config.programAddress,
         required: config.required,
-        async validate(ctx: InstructionPolicyContext): Promise<PolicyResult> {
+        async validate(ctx: InstructionValidationContext): Promise<ValidationResult> {
             // 1. Verify program address matches (defensive check)
             if (ctx.instruction.programAddress !== config.programAddress) {
                 return `Custom Program: Program address mismatch - expected ${config.programAddress}, got ${ctx.instruction.programAddress}`;

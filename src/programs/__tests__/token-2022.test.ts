@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { createToken2022Policy, Token2022Instruction } from "../token-2022.js";
-import type { InstructionPolicyContext } from "../../types.js";
+import { createToken2022Validator, Token2022Instruction } from "../token-2022.js";
+import type { InstructionValidationContext } from "../../types.js";
 import { address, type Instruction } from "@solana/kit";
 import {
     getTransferInstruction,
@@ -24,20 +24,20 @@ const DELEGATE = address("11111111111111111111111111111117");
 const ANOTHER_DELEGATE = address("11111111111111111111111111111118");
 
 // Helper to create a mock instruction context
-const createMockContext = (instruction: Instruction): InstructionPolicyContext => {
+const createMockContext = (instruction: Instruction): InstructionValidationContext => {
     return {
         signer: SIGNER,
-        transaction: {} as InstructionPolicyContext["transaction"],
-        decompiledMessage: {} as InstructionPolicyContext["decompiledMessage"],
-        instruction: instruction as InstructionPolicyContext["instruction"],
+        transaction: {} as InstructionValidationContext["transaction"],
+        decompiledMessage: {} as InstructionValidationContext["decompiledMessage"],
+        instruction: instruction as InstructionValidationContext["instruction"],
         instructionIndex: 0,
     };
 };
 
-describe("createToken2022Policy", () => {
+describe("createToken2022Validator", () => {
     describe("instruction allowlist", () => {
         it("should deny instruction when not in config", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {},
             });
 
@@ -53,7 +53,7 @@ describe("createToken2022Policy", () => {
         });
 
         it("should explicitly deny instruction when set to false", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.Transfer]: false,
                 },
@@ -71,7 +71,7 @@ describe("createToken2022Policy", () => {
         });
 
         it("should allow instruction when set to true", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.Transfer]: true,
                 },
@@ -90,7 +90,7 @@ describe("createToken2022Policy", () => {
 
         it("should allow instruction with custom validator function", async () => {
             let validatorCalled = false;
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.Transfer]: async () => {
                         validatorCalled = true;
@@ -114,7 +114,7 @@ describe("createToken2022Policy", () => {
 
     describe("Transfer validation", () => {
         it("should allow transfer within limit", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.Transfer]: {
                         maxAmount: 1_000_000n,
@@ -134,7 +134,7 @@ describe("createToken2022Policy", () => {
         });
 
         it("should reject transfer exceeding limit", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.Transfer]: {
                         maxAmount: 1_000_000n,
@@ -156,7 +156,7 @@ describe("createToken2022Policy", () => {
 
     describe("TransferChecked validation", () => {
         it("should allow transfer with valid mint", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.TransferChecked]: {
                         allowedMints: [MINT],
@@ -178,7 +178,7 @@ describe("createToken2022Policy", () => {
         });
 
         it("should reject transfer with non-allowed mint", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.TransferChecked]: {
                         allowedMints: [MINT],
@@ -200,7 +200,7 @@ describe("createToken2022Policy", () => {
         });
 
         it("should enforce both amount and mint constraints", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.TransferChecked]: {
                         maxAmount: 1_000_000n,
@@ -246,7 +246,7 @@ describe("createToken2022Policy", () => {
 
     describe("Approve validation", () => {
         it("should allow approve within limit", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.Approve]: {
                         maxAmount: 1_000_000n,
@@ -266,7 +266,7 @@ describe("createToken2022Policy", () => {
         });
 
         it("should reject approve exceeding limit", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.Approve]: {
                         maxAmount: 1_000_000n,
@@ -286,7 +286,7 @@ describe("createToken2022Policy", () => {
         });
 
         it("should allow approve to allowed delegate", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.Approve]: {
                         allowedDelegates: [DELEGATE],
@@ -306,7 +306,7 @@ describe("createToken2022Policy", () => {
         });
 
         it("should reject approve to non-allowed delegate", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.Approve]: {
                         allowedDelegates: [DELEGATE],
@@ -328,7 +328,7 @@ describe("createToken2022Policy", () => {
 
     describe("ApproveChecked validation", () => {
         it("should enforce all constraints", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.ApproveChecked]: {
                         maxAmount: 1_000_000n,
@@ -386,7 +386,7 @@ describe("createToken2022Policy", () => {
 
     describe("MintTo validation", () => {
         it("should allow mint within limit", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.MintTo]: {
                         maxAmount: 1_000_000n,
@@ -406,7 +406,7 @@ describe("createToken2022Policy", () => {
         });
 
         it("should reject mint exceeding limit", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.MintTo]: {
                         maxAmount: 1_000_000n,
@@ -426,7 +426,7 @@ describe("createToken2022Policy", () => {
         });
 
         it("should allow mint to allowed mint", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.MintTo]: {
                         allowedMints: [MINT],
@@ -446,7 +446,7 @@ describe("createToken2022Policy", () => {
         });
 
         it("should reject mint to non-allowed mint", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.MintTo]: {
                         allowedMints: [MINT],
@@ -468,7 +468,7 @@ describe("createToken2022Policy", () => {
 
     describe("MintToChecked validation", () => {
         it("should enforce amount and mint constraints", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.MintToChecked]: {
                         maxAmount: 1_000_000n,
@@ -511,7 +511,7 @@ describe("createToken2022Policy", () => {
 
     describe("Burn validation", () => {
         it("should allow burn within limit", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.Burn]: {
                         maxAmount: 1_000_000n,
@@ -531,7 +531,7 @@ describe("createToken2022Policy", () => {
         });
 
         it("should reject burn exceeding limit", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.Burn]: {
                         maxAmount: 1_000_000n,
@@ -553,7 +553,7 @@ describe("createToken2022Policy", () => {
 
     describe("BurnChecked validation", () => {
         it("should enforce amount and mint constraints", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.BurnChecked]: {
                         maxAmount: 1_000_000n,
@@ -596,7 +596,7 @@ describe("createToken2022Policy", () => {
 
     describe("SetAuthority validation", () => {
         it("should allow authority type in allowlist", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.SetAuthority]: {
                         allowedAuthorityTypes: [0, 1], // MintTokens, FreezeAccount
@@ -616,7 +616,7 @@ describe("createToken2022Policy", () => {
         });
 
         it("should reject authority type not in allowlist", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.SetAuthority]: {
                         allowedAuthorityTypes: [0, 1],
@@ -639,7 +639,7 @@ describe("createToken2022Policy", () => {
     describe("custom validators", () => {
         it("should run program-level custom validator", async () => {
             let customValidatorCalled = false;
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.Transfer]: {
                         maxAmount: 1_000_000n,
@@ -664,7 +664,7 @@ describe("createToken2022Policy", () => {
 
         it("should not run custom validator if validation fails", async () => {
             let customValidatorCalled = false;
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.Transfer]: {
                         maxAmount: 1_000_000n,
@@ -688,7 +688,7 @@ describe("createToken2022Policy", () => {
         });
 
         it("should return custom validator error", async () => {
-            const policy = createToken2022Policy({
+            const policy = createToken2022Validator({
                 instructions: {
                     [Token2022Instruction.Transfer]: true,
                 },

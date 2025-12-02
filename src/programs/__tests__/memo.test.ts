@@ -1,31 +1,31 @@
 import { describe, it, expect } from "vitest";
-import { createMemoPolicy, MEMO_PROGRAM_ADDRESS, MemoInstruction } from "../memo.js";
-import type { InstructionPolicyContext } from "../../types.js";
+import { createMemoValidator, MEMO_PROGRAM_ADDRESS, MemoInstruction } from "../memo.js";
+import type { InstructionValidationContext } from "../../types.js";
 import { address } from "@solana/kit";
 
 // Valid base58 address
 const SIGNER = address("11111111111111111111111111111112");
 
 // Helper to create a mock instruction context
-const createMockContext = (memoData: string): InstructionPolicyContext => {
+const createMockContext = (memoData: string): InstructionValidationContext => {
     const encoder = new TextEncoder();
     return {
         signer: SIGNER,
-        transaction: {} as InstructionPolicyContext["transaction"],
-        decompiledMessage: {} as InstructionPolicyContext["decompiledMessage"],
+        transaction: {} as InstructionValidationContext["transaction"],
+        decompiledMessage: {} as InstructionValidationContext["decompiledMessage"],
         instruction: {
             programAddress: MEMO_PROGRAM_ADDRESS,
             data: encoder.encode(memoData),
             accounts: [],
-        } as InstructionPolicyContext["instruction"],
+        } as InstructionValidationContext["instruction"],
         instructionIndex: 0,
     };
 };
 
-describe("createMemoPolicy", () => {
+describe("createMemoValidator", () => {
     describe("instruction modes", () => {
         it("should deny when instruction is undefined (omitted)", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {},
             });
 
@@ -35,7 +35,7 @@ describe("createMemoPolicy", () => {
         });
 
         it("should deny when instruction is false", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: false,
                 },
@@ -47,7 +47,7 @@ describe("createMemoPolicy", () => {
         });
 
         it("should allow when instruction is true", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: true,
                 },
@@ -60,7 +60,7 @@ describe("createMemoPolicy", () => {
 
         it("should use custom validator function", async () => {
             let validatorCalled = false;
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: async (ctx) => {
                         validatorCalled = true;
@@ -84,7 +84,7 @@ describe("createMemoPolicy", () => {
 
     describe("maxLength validation", () => {
         it("should allow memo within length limit", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {
                         maxLength: 100,
@@ -98,7 +98,7 @@ describe("createMemoPolicy", () => {
         });
 
         it("should allow memo at exact length limit", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {
                         maxLength: 10,
@@ -112,7 +112,7 @@ describe("createMemoPolicy", () => {
         });
 
         it("should reject memo exceeding length limit", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {
                         maxLength: 10,
@@ -128,7 +128,7 @@ describe("createMemoPolicy", () => {
         });
 
         it("should allow empty memo when limit is set", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {
                         maxLength: 100,
@@ -144,7 +144,7 @@ describe("createMemoPolicy", () => {
 
     describe("requiredPrefix validation", () => {
         it("should allow memo with required prefix", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {
                         requiredPrefix: "app:",
@@ -158,7 +158,7 @@ describe("createMemoPolicy", () => {
         });
 
         it("should allow memo that is exactly the prefix", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {
                         requiredPrefix: "app:",
@@ -172,7 +172,7 @@ describe("createMemoPolicy", () => {
         });
 
         it("should reject memo without required prefix", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {
                         requiredPrefix: "app:",
@@ -186,7 +186,7 @@ describe("createMemoPolicy", () => {
         });
 
         it("should reject memo with prefix in wrong position", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {
                         requiredPrefix: "app:",
@@ -200,7 +200,7 @@ describe("createMemoPolicy", () => {
         });
 
         it("should be case-sensitive", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {
                         requiredPrefix: "app:",
@@ -216,7 +216,7 @@ describe("createMemoPolicy", () => {
 
     describe("combined constraints", () => {
         it("should enforce both maxLength and requiredPrefix", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {
                         maxLength: 20,
@@ -243,7 +243,7 @@ describe("createMemoPolicy", () => {
         });
 
         it("should allow memo with no constraints when config is empty object", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {},
                 },
@@ -258,7 +258,7 @@ describe("createMemoPolicy", () => {
     describe("custom validators", () => {
         it("should run program-level custom validator after declarative validation", async () => {
             let customValidatorCalled = false;
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {
                         maxLength: 100,
@@ -277,7 +277,7 @@ describe("createMemoPolicy", () => {
 
         it("should not run custom validator if declarative validation fails", async () => {
             let customValidatorCalled = false;
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {
                         maxLength: 5,
@@ -295,7 +295,7 @@ describe("createMemoPolicy", () => {
         });
 
         it("should return custom validator error", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {
                         maxLength: 100,
@@ -313,7 +313,7 @@ describe("createMemoPolicy", () => {
             let instructionValidatorCalled = false;
             let programValidatorCalled = false;
 
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: () => {
                         instructionValidatorCalled = true;
@@ -335,7 +335,7 @@ describe("createMemoPolicy", () => {
 
     describe("UTF-8 handling", () => {
         it("should handle multi-byte UTF-8 characters in length check", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {
                         maxLength: 10,
@@ -351,7 +351,7 @@ describe("createMemoPolicy", () => {
         });
 
         it("should handle UTF-8 characters in prefix check", async () => {
-            const policy = createMemoPolicy({
+            const policy = createMemoValidator({
                 instructions: {
                     [MemoInstruction.Memo]: {
                         requiredPrefix: "🚀:",

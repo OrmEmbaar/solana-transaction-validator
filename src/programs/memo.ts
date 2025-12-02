@@ -6,9 +6,9 @@ import {
 } from "@solana/kit";
 import { MEMO_PROGRAM_ADDRESS } from "@solana-program/memo";
 import type {
-    InstructionPolicyContext,
-    PolicyResult,
-    ProgramPolicy,
+    InstructionValidationContext,
+    ValidationResult,
+    ProgramValidator,
     ProgramPolicyConfig,
 } from "../types.js";
 import { runCustomValidator } from "./utils.js";
@@ -17,7 +17,7 @@ import { runCustomValidator } from "./utils.js";
 export { MEMO_PROGRAM_ADDRESS };
 
 // Program-specific context type
-export type MemoPolicyContext = InstructionPolicyContext<typeof MEMO_PROGRAM_ADDRESS>;
+export type MemoValidationContext = InstructionValidationContext<typeof MEMO_PROGRAM_ADDRESS>;
 
 // Type for a validated instruction with data
 type ValidatedInstruction = Instruction & InstructionWithData<Uint8Array>;
@@ -90,12 +90,12 @@ export interface MemoPolicyConfig extends ProgramPolicyConfig<
  * verifies signer accounts.
  *
  * @param config - The Memo policy configuration
- * @returns A ProgramPolicy that validates Memo instructions
+ * @returns A ProgramValidator that validates Memo instructions
  *
  * @example
  * ```typescript
  * // Declarative: use built-in constraints
- * const memoPolicy = createMemoPolicy({
+ * const memoPolicy = createMemoValidator({
  *     instructions: {
  *         [MemoInstruction.Memo]: {
  *             maxLength: 256,
@@ -106,7 +106,7 @@ export interface MemoPolicyConfig extends ProgramPolicyConfig<
  * });
  *
  * // Custom: full control with a function
- * const customMemoPolicy = createMemoPolicy({
+ * const customMemoPolicy = createMemoValidator({
  *     instructions: {
  *         [MemoInstruction.Memo]: async (ctx) => {
  *             // Custom validation logic
@@ -116,17 +116,17 @@ export interface MemoPolicyConfig extends ProgramPolicyConfig<
  * });
  * ```
  */
-export function createMemoPolicy(config: MemoPolicyConfig): ProgramPolicy {
+export function createMemoValidator(config: MemoPolicyConfig): ProgramValidator {
     return {
         programAddress: MEMO_PROGRAM_ADDRESS,
         required: config.required,
-        async validate(ctx: InstructionPolicyContext): Promise<PolicyResult> {
+        async validate(ctx: InstructionValidationContext): Promise<ValidationResult> {
             // Assert this is a valid Memo Program instruction with data
             assertIsInstructionForProgram(ctx.instruction, MEMO_PROGRAM_ADDRESS);
             assertIsInstructionWithData(ctx.instruction);
 
             // After assertions, context is now typed for Memo Program
-            const typedCtx = ctx as MemoPolicyContext;
+            const typedCtx = ctx as MemoValidationContext;
             const ix = typedCtx.instruction as ValidatedInstruction;
 
             // Get the instruction config (Memo only has one instruction type)

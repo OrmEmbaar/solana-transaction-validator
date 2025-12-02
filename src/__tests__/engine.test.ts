@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { createPolicyValidator } from "../engine.js";
-import { type ProgramPolicy, SignerRole } from "../types.js";
+import { createTransactionValidator } from "../engine.js";
+import { type ProgramValidator, SignerRole } from "../types.js";
 import {
     address,
     compileTransactionMessage,
@@ -41,11 +41,11 @@ const createTestTransaction = (
     );
 };
 
-// Helper to create a mock ProgramPolicy
+// Helper to create a mock ProgramValidator
 const createMockPolicy = (
     programAddress: string,
     options?: { required?: boolean | (number | string)[] },
-): ProgramPolicy => ({
+): ProgramValidator => ({
     programAddress: address(programAddress),
     required: options?.required,
     validate: vi.fn().mockResolvedValue(true),
@@ -56,7 +56,7 @@ describe("PolicyEngine", () => {
         const programId = "11111111111111111111111111111111";
         const mockPolicy = createMockPolicy(programId);
 
-        const validator = createPolicyValidator({
+        const validator = createTransactionValidator({
             global: {
                 signerRole: SignerRole.Any,
             },
@@ -73,7 +73,7 @@ describe("PolicyEngine", () => {
         const programId = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
         const tokenPolicy = createMockPolicy(programId);
 
-        const validator = createPolicyValidator({
+        const validator = createTransactionValidator({
             global: {
                 signerRole: SignerRole.Any,
             },
@@ -90,7 +90,7 @@ describe("PolicyEngine", () => {
     });
 
     it("should deny unknown programs (strict allowlist)", async () => {
-        const validator = createPolicyValidator({
+        const validator = createTransactionValidator({
             global: {
                 signerRole: SignerRole.Any,
             },
@@ -107,12 +107,12 @@ describe("PolicyEngine", () => {
 
     it("should fail if a program policy returns false", async () => {
         const programId = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-        const tokenPolicy: ProgramPolicy = {
+        const tokenPolicy: ProgramValidator = {
             programAddress: address(programId),
             validate: vi.fn().mockResolvedValue("Token policy says no"),
         };
 
-        const validator = createPolicyValidator({
+        const validator = createTransactionValidator({
             global: {
                 signerRole: SignerRole.Any,
             },
@@ -130,14 +130,14 @@ describe("PolicyEngine", () => {
         const programId = "11111111111111111111111111111111";
 
         expect(() =>
-            createPolicyValidator({
+            createTransactionValidator({
                 global: { signerRole: SignerRole.Any },
                 programs: [
                     createMockPolicy(programId),
                     createMockPolicy(programId), // Duplicate
                 ],
             }),
-        ).toThrow(/Duplicate program policy/);
+        ).toThrow(/Duplicate program validator/);
     });
 
     describe("Required Programs", () => {
@@ -145,7 +145,7 @@ describe("PolicyEngine", () => {
             const programId = "11111111111111111111111111111111";
             const mockPolicy = createMockPolicy(programId, { required: true });
 
-            const validator = createPolicyValidator({
+            const validator = createTransactionValidator({
                 global: { signerRole: SignerRole.Any },
                 programs: [mockPolicy],
             });
@@ -160,7 +160,7 @@ describe("PolicyEngine", () => {
             const requiredProgramId = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
             const actualProgramId = "11111111111111111111111111111111";
 
-            const validator = createPolicyValidator({
+            const validator = createTransactionValidator({
                 global: { signerRole: SignerRole.Any },
                 programs: [
                     createMockPolicy(requiredProgramId, { required: true }),
@@ -180,7 +180,7 @@ describe("PolicyEngine", () => {
             const programId = "11111111111111111111111111111111";
             const mockPolicy = createMockPolicy(programId, { required: [0] }); // Require instruction discriminator 0
 
-            const validator = createPolicyValidator({
+            const validator = createTransactionValidator({
                 global: { signerRole: SignerRole.Any },
                 programs: [mockPolicy],
             });
@@ -196,7 +196,7 @@ describe("PolicyEngine", () => {
             const programId = "11111111111111111111111111111111";
             const mockPolicy = createMockPolicy(programId, { required: [5] }); // Require instruction discriminator 5
 
-            const validator = createPolicyValidator({
+            const validator = createTransactionValidator({
                 global: { signerRole: SignerRole.Any },
                 programs: [mockPolicy],
             });
@@ -214,7 +214,7 @@ describe("PolicyEngine", () => {
                 required: [0, 1],
             }); // Require both instructions
 
-            const validator = createPolicyValidator({
+            const validator = createTransactionValidator({
                 global: { signerRole: SignerRole.Any },
                 programs: [mockPolicy],
             });
@@ -250,15 +250,15 @@ describe("PolicyEngine", () => {
         });
     });
 
-    describe("ProgramPolicy types", () => {
+    describe("ProgramValidator types", () => {
         it("should accept optional program (no required field)", async () => {
             const programId = "11111111111111111111111111111111";
-            const policy: ProgramPolicy = {
+            const policy: ProgramValidator = {
                 programAddress: address(programId),
                 validate: vi.fn().mockResolvedValue(true),
             };
 
-            const validator = createPolicyValidator({
+            const validator = createTransactionValidator({
                 global: { signerRole: SignerRole.Any },
                 programs: [policy],
             });
@@ -271,13 +271,13 @@ describe("PolicyEngine", () => {
 
         it("should accept required=false as optional", async () => {
             const programId = "11111111111111111111111111111111";
-            const policy: ProgramPolicy = {
+            const policy: ProgramValidator = {
                 programAddress: address(programId),
                 required: false,
                 validate: vi.fn().mockResolvedValue(true),
             };
 
-            const validator = createPolicyValidator({
+            const validator = createTransactionValidator({
                 global: { signerRole: SignerRole.Any },
                 programs: [policy],
             });

@@ -13,9 +13,9 @@ import {
     parseRequestHeapFrameInstruction,
 } from "@solana-program/compute-budget";
 import type {
-    InstructionPolicyContext,
-    PolicyResult,
-    ProgramPolicy,
+    InstructionValidationContext,
+    ValidationResult,
+    ProgramValidator,
     ProgramPolicyConfig,
 } from "../types.js";
 import { runCustomValidator } from "./utils.js";
@@ -24,7 +24,7 @@ import { runCustomValidator } from "./utils.js";
 export { COMPUTE_BUDGET_PROGRAM_ADDRESS, ComputeBudgetInstruction };
 
 // Program-specific context type
-export type ComputeBudgetPolicyContext = InstructionPolicyContext<
+export type ComputeBudgetValidationContext = InstructionValidationContext<
     typeof COMPUTE_BUDGET_PROGRAM_ADDRESS
 >;
 
@@ -104,11 +104,11 @@ export interface ComputeBudgetPolicyConfig extends ProgramPolicyConfig<
  * identification and parsing.
  *
  * @param config - The Compute Budget policy configuration
- * @returns A ProgramPolicy that validates Compute Budget instructions
+ * @returns A ProgramValidator that validates Compute Budget instructions
  *
  * @example
  * ```typescript
- * const computeBudgetPolicy = createComputeBudgetPolicy({
+ * const computeBudgetPolicy = createComputeBudgetValidator({
  *     instructions: {
  *         // Declarative: use built-in constraints
  *         [ComputeBudgetInstruction.SetComputeUnitLimit]: {
@@ -124,17 +124,17 @@ export interface ComputeBudgetPolicyConfig extends ProgramPolicyConfig<
  * });
  * ```
  */
-export function createComputeBudgetPolicy(config: ComputeBudgetPolicyConfig): ProgramPolicy {
+export function createComputeBudgetValidator(config: ComputeBudgetPolicyConfig): ProgramValidator {
     return {
         programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS,
         required: config.required,
-        async validate(ctx: InstructionPolicyContext): Promise<PolicyResult> {
+        async validate(ctx: InstructionValidationContext): Promise<ValidationResult> {
             // Assert this is a valid Compute Budget Program instruction with data
             assertIsInstructionForProgram(ctx.instruction, COMPUTE_BUDGET_PROGRAM_ADDRESS);
             assertIsInstructionWithData(ctx.instruction);
 
             // After assertions, context is now typed for Compute Budget Program
-            const typedCtx = ctx as ComputeBudgetPolicyContext;
+            const typedCtx = ctx as ComputeBudgetValidationContext;
             const ix = typedCtx.instruction as ValidatedInstruction;
 
             // Identify the instruction type
@@ -181,7 +181,7 @@ function validateInstruction(
     ixType: ComputeBudgetInstruction,
     ixConfig: InstructionConfig,
     ix: ValidatedInstruction,
-): PolicyResult {
+): ValidationResult {
     switch (ixType) {
         case ComputeBudgetInstruction.SetComputeUnitLimit:
             return validateSetComputeUnitLimit(ixConfig as SetComputeUnitLimitConfig, ix);
@@ -205,7 +205,7 @@ function validateInstruction(
 function validateSetComputeUnitLimit(
     config: SetComputeUnitLimitConfig,
     ix: ValidatedInstruction,
-): PolicyResult {
+): ValidationResult {
     const parsed = parseSetComputeUnitLimitInstruction(ix);
 
     if (config.maxUnits !== undefined && parsed.data.units > config.maxUnits) {
@@ -218,7 +218,7 @@ function validateSetComputeUnitLimit(
 function validateSetComputeUnitPrice(
     config: SetComputeUnitPriceConfig,
     ix: ValidatedInstruction,
-): PolicyResult {
+): ValidationResult {
     const parsed = parseSetComputeUnitPriceInstruction(ix);
 
     if (
@@ -234,7 +234,7 @@ function validateSetComputeUnitPrice(
 function validateRequestHeapFrame(
     config: RequestHeapFrameConfig,
     ix: ValidatedInstruction,
-): PolicyResult {
+): ValidationResult {
     const parsed = parseRequestHeapFrameInstruction(ix);
 
     if (config.maxBytes !== undefined && parsed.data.bytes > config.maxBytes) {

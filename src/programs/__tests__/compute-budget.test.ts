@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { createComputeBudgetPolicy, ComputeBudgetInstruction } from "../compute-budget.js";
-import type { InstructionPolicyContext } from "../../types.js";
+import { createComputeBudgetValidator, ComputeBudgetInstruction } from "../compute-budget.js";
+import type { InstructionValidationContext } from "../../types.js";
 import { address, type Instruction } from "@solana/kit";
 import {
     getSetComputeUnitLimitInstruction,
@@ -12,20 +12,20 @@ import {
 const SIGNER = address("11111111111111111111111111111112");
 
 // Helper to create a mock instruction context
-const createMockContext = (instruction: Instruction): InstructionPolicyContext => {
+const createMockContext = (instruction: Instruction): InstructionValidationContext => {
     return {
         signer: SIGNER,
-        transaction: {} as InstructionPolicyContext["transaction"],
-        decompiledMessage: {} as InstructionPolicyContext["decompiledMessage"],
-        instruction: instruction as InstructionPolicyContext["instruction"],
+        transaction: {} as InstructionValidationContext["transaction"],
+        decompiledMessage: {} as InstructionValidationContext["decompiledMessage"],
+        instruction: instruction as InstructionValidationContext["instruction"],
         instructionIndex: 0,
     };
 };
 
-describe("createComputeBudgetPolicy", () => {
+describe("createComputeBudgetValidator", () => {
     describe("instruction allowlist", () => {
         it("should deny instruction when not in config", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {},
             });
 
@@ -35,7 +35,7 @@ describe("createComputeBudgetPolicy", () => {
         });
 
         it("should explicitly deny instruction when set to false", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.SetComputeUnitLimit]: false,
                 },
@@ -47,7 +47,7 @@ describe("createComputeBudgetPolicy", () => {
         });
 
         it("should allow instruction when set to true", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.SetComputeUnitLimit]: true,
                 },
@@ -60,7 +60,7 @@ describe("createComputeBudgetPolicy", () => {
 
         it("should allow instruction with custom validator function", async () => {
             let validatorCalled = false;
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.SetComputeUnitLimit]: async () => {
                         validatorCalled = true;
@@ -78,7 +78,7 @@ describe("createComputeBudgetPolicy", () => {
 
     describe("SetComputeUnitLimit validation", () => {
         it("should allow units within limit", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.SetComputeUnitLimit]: {
                         maxUnits: 1_400_000,
@@ -92,7 +92,7 @@ describe("createComputeBudgetPolicy", () => {
         });
 
         it("should allow units at exact limit", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.SetComputeUnitLimit]: {
                         maxUnits: 1_400_000,
@@ -106,7 +106,7 @@ describe("createComputeBudgetPolicy", () => {
         });
 
         it("should reject units exceeding limit", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.SetComputeUnitLimit]: {
                         maxUnits: 1_400_000,
@@ -121,7 +121,7 @@ describe("createComputeBudgetPolicy", () => {
         });
 
         it("should allow units when no constraint specified", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.SetComputeUnitLimit]: {},
                 },
@@ -135,7 +135,7 @@ describe("createComputeBudgetPolicy", () => {
 
     describe("SetComputeUnitPrice validation", () => {
         it("should allow price within limit", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.SetComputeUnitPrice]: {
                         maxMicroLamportsPerCu: 1_000_000n,
@@ -149,7 +149,7 @@ describe("createComputeBudgetPolicy", () => {
         });
 
         it("should allow price at exact limit", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.SetComputeUnitPrice]: {
                         maxMicroLamportsPerCu: 1_000_000n,
@@ -163,7 +163,7 @@ describe("createComputeBudgetPolicy", () => {
         });
 
         it("should reject price exceeding limit", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.SetComputeUnitPrice]: {
                         maxMicroLamportsPerCu: 1_000_000n,
@@ -178,7 +178,7 @@ describe("createComputeBudgetPolicy", () => {
         });
 
         it("should allow price when no constraint specified", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.SetComputeUnitPrice]: {},
                 },
@@ -192,7 +192,7 @@ describe("createComputeBudgetPolicy", () => {
 
     describe("RequestHeapFrame validation", () => {
         it("should allow bytes within limit", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.RequestHeapFrame]: {
                         maxBytes: 256_000,
@@ -206,7 +206,7 @@ describe("createComputeBudgetPolicy", () => {
         });
 
         it("should allow bytes at exact limit", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.RequestHeapFrame]: {
                         maxBytes: 256_000,
@@ -220,7 +220,7 @@ describe("createComputeBudgetPolicy", () => {
         });
 
         it("should reject bytes exceeding limit", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.RequestHeapFrame]: {
                         maxBytes: 256_000,
@@ -235,7 +235,7 @@ describe("createComputeBudgetPolicy", () => {
         });
 
         it("should allow bytes when no constraint specified", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.RequestHeapFrame]: {},
                 },
@@ -250,7 +250,7 @@ describe("createComputeBudgetPolicy", () => {
     describe("custom validators", () => {
         it("should run program-level custom validator", async () => {
             let customValidatorCalled = false;
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.SetComputeUnitLimit]: {
                         maxUnits: 1_400_000,
@@ -269,7 +269,7 @@ describe("createComputeBudgetPolicy", () => {
 
         it("should not run custom validator if validation fails", async () => {
             let customValidatorCalled = false;
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.SetComputeUnitLimit]: {
                         maxUnits: 1_400_000,
@@ -287,7 +287,7 @@ describe("createComputeBudgetPolicy", () => {
         });
 
         it("should return custom validator error", async () => {
-            const policy = createComputeBudgetPolicy({
+            const policy = createComputeBudgetValidator({
                 instructions: {
                     [ComputeBudgetInstruction.SetComputeUnitLimit]: true,
                 },
