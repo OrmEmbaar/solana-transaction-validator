@@ -256,6 +256,9 @@ type InstructionConfig =
     | MintToConfig
     | BurnConfig
     | SetAuthorityConfig
+    | CloseAccountConfig
+    | FreezeThawConfig
+    | RevokeSimpleConfig
     | NoConstraintsConfig;
 
 function validateInstruction(
