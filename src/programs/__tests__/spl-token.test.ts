@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createSplTokenPolicy, TokenInstruction } from "../spl-token.js";
 import type { InstructionPolicyContext } from "../../types.js";
-import { address, type Address, type Instruction } from "@solana/kit";
+import { address, type Instruction } from "@solana/kit";
 import {
     getTransferInstruction,
     getTransferCheckedInstruction,
@@ -44,13 +44,10 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: {
-                    address: TOKEN_ACCOUNT,
-                    role: 0,
-                } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
                 amount: 1000n,
+                authority: SIGNER,
             });
 
             const result = await policy.validate(createMockContext(ix));
@@ -65,9 +62,9 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 1000n,
             });
 
@@ -83,9 +80,9 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 1000n,
             });
 
@@ -105,9 +102,9 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 1000n,
             });
 
@@ -128,9 +125,9 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 500_000n,
             });
 
@@ -148,9 +145,9 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 2_000_000n,
             });
 
@@ -170,10 +167,10 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getTransferCheckedInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: MINT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 1000n,
                 decimals: 6,
             });
@@ -192,10 +189,10 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getTransferCheckedInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: ANOTHER_MINT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 1000n,
                 decimals: 6,
             });
@@ -216,10 +213,10 @@ describe("createSplTokenPolicy", () => {
 
             // Valid
             const ix1 = getTransferCheckedInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: MINT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -227,10 +224,10 @@ describe("createSplTokenPolicy", () => {
 
             // Invalid amount
             const ix2 = getTransferCheckedInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: MINT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 2_000_000n,
                 decimals: 6,
             });
@@ -238,10 +235,10 @@ describe("createSplTokenPolicy", () => {
 
             // Invalid mint
             const ix3 = getTransferCheckedInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: ANOTHER_MINT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -260,9 +257,9 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getApproveInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 delegate: DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 500_000n,
             });
 
@@ -280,9 +277,9 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getApproveInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 delegate: DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 2_000_000n,
             });
 
@@ -300,9 +297,9 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getApproveInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 delegate: DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 1000n,
             });
 
@@ -320,9 +317,9 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getApproveInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 delegate: ANOTHER_DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 1000n,
             });
 
@@ -345,10 +342,10 @@ describe("createSplTokenPolicy", () => {
 
             // Valid
             const ix1 = getApproveCheckedInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: MINT,
                 delegate: DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -356,10 +353,10 @@ describe("createSplTokenPolicy", () => {
 
             // Invalid amount
             const ix2 = getApproveCheckedInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: MINT,
                 delegate: DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 2_000_000n,
                 decimals: 6,
             });
@@ -367,10 +364,10 @@ describe("createSplTokenPolicy", () => {
 
             // Invalid mint
             const ix3 = getApproveCheckedInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: ANOTHER_MINT,
                 delegate: DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -378,10 +375,10 @@ describe("createSplTokenPolicy", () => {
 
             // Invalid delegate
             const ix4 = getApproveCheckedInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: MINT,
                 delegate: ANOTHER_DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -402,7 +399,7 @@ describe("createSplTokenPolicy", () => {
             const ix = getMintToInstruction({
                 mint: MINT,
                 token: TOKEN_ACCOUNT,
-                mintAuthority: { address: SIGNER, role: 3 } as any,
+                mintAuthority: SIGNER,
                 amount: 500_000n,
             });
 
@@ -422,7 +419,7 @@ describe("createSplTokenPolicy", () => {
             const ix = getMintToInstruction({
                 mint: MINT,
                 token: TOKEN_ACCOUNT,
-                mintAuthority: { address: SIGNER, role: 3 } as any,
+                mintAuthority: SIGNER,
                 amount: 2_000_000n,
             });
 
@@ -442,7 +439,7 @@ describe("createSplTokenPolicy", () => {
             const ix = getMintToInstruction({
                 mint: MINT,
                 token: TOKEN_ACCOUNT,
-                mintAuthority: { address: SIGNER, role: 3 } as any,
+                mintAuthority: SIGNER,
                 amount: 1000n,
             });
 
@@ -462,7 +459,7 @@ describe("createSplTokenPolicy", () => {
             const ix = getMintToInstruction({
                 mint: ANOTHER_MINT,
                 token: TOKEN_ACCOUNT,
-                mintAuthority: { address: SIGNER, role: 3 } as any,
+                mintAuthority: SIGNER,
                 amount: 1000n,
             });
 
@@ -486,7 +483,7 @@ describe("createSplTokenPolicy", () => {
             const ix1 = getMintToCheckedInstruction({
                 mint: MINT,
                 token: TOKEN_ACCOUNT,
-                mintAuthority: { address: SIGNER, role: 3 } as any,
+                mintAuthority: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -496,7 +493,7 @@ describe("createSplTokenPolicy", () => {
             const ix2 = getMintToCheckedInstruction({
                 mint: MINT,
                 token: TOKEN_ACCOUNT,
-                mintAuthority: { address: SIGNER, role: 3 } as any,
+                mintAuthority: SIGNER,
                 amount: 2_000_000n,
                 decimals: 6,
             });
@@ -506,7 +503,7 @@ describe("createSplTokenPolicy", () => {
             const ix3 = getMintToCheckedInstruction({
                 mint: ANOTHER_MINT,
                 token: TOKEN_ACCOUNT,
-                mintAuthority: { address: SIGNER, role: 3 } as any,
+                mintAuthority: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -527,7 +524,7 @@ describe("createSplTokenPolicy", () => {
             const ix = getBurnInstruction({
                 account: TOKEN_ACCOUNT,
                 mint: MINT,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 500_000n,
             });
 
@@ -547,7 +544,7 @@ describe("createSplTokenPolicy", () => {
             const ix = getBurnInstruction({
                 account: TOKEN_ACCOUNT,
                 mint: MINT,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 2_000_000n,
             });
 
@@ -571,7 +568,7 @@ describe("createSplTokenPolicy", () => {
             const ix1 = getBurnCheckedInstruction({
                 account: TOKEN_ACCOUNT,
                 mint: MINT,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -581,7 +578,7 @@ describe("createSplTokenPolicy", () => {
             const ix2 = getBurnCheckedInstruction({
                 account: TOKEN_ACCOUNT,
                 mint: MINT,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 2_000_000n,
                 decimals: 6,
             });
@@ -591,7 +588,7 @@ describe("createSplTokenPolicy", () => {
             const ix3 = getBurnCheckedInstruction({
                 account: TOKEN_ACCOUNT,
                 mint: ANOTHER_MINT,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -610,8 +607,8 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getSetAuthorityInstruction({
-                account: TOKEN_ACCOUNT,
-                currentAuthority: { address: SIGNER, role: 3 } as any,
+                owned: TOKEN_ACCOUNT,
+                owner: SIGNER,
                 authorityType: 0,
                 newAuthority: DELEGATE,
             });
@@ -630,8 +627,8 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getSetAuthorityInstruction({
-                account: TOKEN_ACCOUNT,
-                currentAuthority: { address: SIGNER, role: 3 } as any,
+                owned: TOKEN_ACCOUNT,
+                owner: SIGNER,
                 authorityType: 2, // AccountOwner
                 newAuthority: DELEGATE,
             });
@@ -650,8 +647,8 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getRevokeInstruction({
-                account: TOKEN_ACCOUNT,
-                owner: { address: SIGNER, role: 3 } as any,
+                source: TOKEN_ACCOUNT,
+                owner: SIGNER,
             });
 
             const result = await policy.validate(createMockContext(ix));
@@ -668,7 +665,7 @@ describe("createSplTokenPolicy", () => {
             const ix = getCloseAccountInstruction({
                 account: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                authority: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
             });
 
             const result = await policy.validate(createMockContext(ix));
@@ -692,9 +689,9 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 500_000n,
             });
 
@@ -717,9 +714,9 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 2_000_000n,
             });
 
@@ -736,9 +733,9 @@ describe("createSplTokenPolicy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 1000n,
             });
 
@@ -747,4 +744,3 @@ describe("createSplTokenPolicy", () => {
         });
     });
 });
-

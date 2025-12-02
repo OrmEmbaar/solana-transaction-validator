@@ -44,4 +44,3 @@ export function validateTransactionVersion(
 
     return true;
 }
-

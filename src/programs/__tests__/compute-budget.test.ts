@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-    createComputeBudgetPolicy,
-    ComputeBudgetInstruction,
-} from "../compute-budget.js";
+import { createComputeBudgetPolicy, ComputeBudgetInstruction } from "../compute-budget.js";
 import type { InstructionPolicyContext } from "../../types.js";
 import { address, type Instruction } from "@solana/kit";
 import {
@@ -303,4 +300,3 @@ describe("createComputeBudgetPolicy", () => {
         });
     });
 });
-

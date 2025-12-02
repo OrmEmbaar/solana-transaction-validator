@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { validateSimulation } from "../validator.js";
-import type { GlobalPolicyContext, SimulationConstraints } from "../../types.js";
+import type { GlobalPolicyContext } from "../../types.js";
 import type { Rpc, SolanaRpcApi, Address } from "@solana/kit";
 import {
     address,
@@ -15,6 +15,7 @@ import {
 } from "@solana/kit";
 
 // Helper to create mock RPC with typed responses
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createMockRpc(simulationResponse: any): Rpc<SolanaRpcApi> {
     return {
         simulateTransaction: vi.fn(() => ({
@@ -55,6 +56,7 @@ function createTestContext(
         signer: payer,
         transaction: compiled,
         decompiledMessage,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         transactionMessage: "dGVzdA==" as any, // Mock base64 encoded transaction
     };
 }
@@ -75,7 +77,7 @@ const MOCK_RESPONSES = {
         context: { slot: 123456n },
     }),
 
-    error: (errorDetails: any) => ({
+    error: (errorDetails: unknown) => ({
         value: {
             err: errorDetails,
             logs: ["Program failed"],
@@ -150,9 +152,7 @@ describe("validateSimulation", () => {
         });
 
         it("should use requireSuccess=true as default", async () => {
-            const mockRpc = createMockRpc(
-                MOCK_RESPONSES.error({ InstructionError: [0, "Error"] }),
-            );
+            const mockRpc = createMockRpc(MOCK_RESPONSES.error({ InstructionError: [0, "Error"] }));
 
             const result = await validateSimulation({}, ctx, mockRpc);
 

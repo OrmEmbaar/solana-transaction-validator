@@ -23,4 +23,3 @@ export function validateSignerAllowlist(
 
     return true;
 }
-

@@ -80,4 +80,3 @@ describe("validateSignerAllowlist", () => {
         expect(result).toBe(true);
     });
 });
-

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createToken2022Policy, Token2022Instruction } from "../token-2022.js";
 import type { InstructionPolicyContext } from "../../types.js";
-import { address, type Address, type Instruction } from "@solana/kit";
+import { address, type Instruction } from "@solana/kit";
 import {
     getTransferInstruction,
     getTransferCheckedInstruction,
@@ -42,12 +42,9 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: {
-                    address: TOKEN_ACCOUNT,
-                    role: 0,
-                } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 1000n,
             });
 
@@ -63,9 +60,9 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 1000n,
             });
 
@@ -81,9 +78,9 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 1000n,
             });
 
@@ -103,9 +100,9 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 1000n,
             });
 
@@ -126,9 +123,9 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 500_000n,
             });
 
@@ -146,9 +143,9 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 2_000_000n,
             });
 
@@ -168,10 +165,10 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getTransferCheckedInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: MINT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 1000n,
                 decimals: 6,
             });
@@ -190,10 +187,10 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getTransferCheckedInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: ANOTHER_MINT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 1000n,
                 decimals: 6,
             });
@@ -214,10 +211,10 @@ describe("createToken2022Policy", () => {
 
             // Valid
             const ix1 = getTransferCheckedInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: MINT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -225,10 +222,10 @@ describe("createToken2022Policy", () => {
 
             // Invalid amount
             const ix2 = getTransferCheckedInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: MINT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 2_000_000n,
                 decimals: 6,
             });
@@ -236,10 +233,10 @@ describe("createToken2022Policy", () => {
 
             // Invalid mint
             const ix3 = getTransferCheckedInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: ANOTHER_MINT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -258,9 +255,9 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getApproveInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 delegate: DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 500_000n,
             });
 
@@ -278,9 +275,9 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getApproveInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 delegate: DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 2_000_000n,
             });
 
@@ -298,9 +295,9 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getApproveInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 delegate: DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 1000n,
             });
 
@@ -318,9 +315,9 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getApproveInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 delegate: ANOTHER_DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 1000n,
             });
 
@@ -343,10 +340,10 @@ describe("createToken2022Policy", () => {
 
             // Valid
             const ix1 = getApproveCheckedInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: MINT,
                 delegate: DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -354,10 +351,10 @@ describe("createToken2022Policy", () => {
 
             // Invalid amount
             const ix2 = getApproveCheckedInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: MINT,
                 delegate: DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 2_000_000n,
                 decimals: 6,
             });
@@ -365,10 +362,10 @@ describe("createToken2022Policy", () => {
 
             // Invalid mint
             const ix3 = getApproveCheckedInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: ANOTHER_MINT,
                 delegate: DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -376,10 +373,10 @@ describe("createToken2022Policy", () => {
 
             // Invalid delegate
             const ix4 = getApproveCheckedInstruction({
-                account: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 mint: MINT,
                 delegate: ANOTHER_DELEGATE,
-                owner: { address: SIGNER, role: 3 } as any,
+                owner: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -400,7 +397,7 @@ describe("createToken2022Policy", () => {
             const ix = getMintToInstruction({
                 mint: MINT,
                 token: TOKEN_ACCOUNT,
-                mintAuthority: { address: SIGNER, role: 3 } as any,
+                mintAuthority: SIGNER,
                 amount: 500_000n,
             });
 
@@ -420,7 +417,7 @@ describe("createToken2022Policy", () => {
             const ix = getMintToInstruction({
                 mint: MINT,
                 token: TOKEN_ACCOUNT,
-                mintAuthority: { address: SIGNER, role: 3 } as any,
+                mintAuthority: SIGNER,
                 amount: 2_000_000n,
             });
 
@@ -440,7 +437,7 @@ describe("createToken2022Policy", () => {
             const ix = getMintToInstruction({
                 mint: MINT,
                 token: TOKEN_ACCOUNT,
-                mintAuthority: { address: SIGNER, role: 3 } as any,
+                mintAuthority: SIGNER,
                 amount: 1000n,
             });
 
@@ -460,7 +457,7 @@ describe("createToken2022Policy", () => {
             const ix = getMintToInstruction({
                 mint: ANOTHER_MINT,
                 token: TOKEN_ACCOUNT,
-                mintAuthority: { address: SIGNER, role: 3 } as any,
+                mintAuthority: SIGNER,
                 amount: 1000n,
             });
 
@@ -484,7 +481,7 @@ describe("createToken2022Policy", () => {
             const ix1 = getMintToCheckedInstruction({
                 mint: MINT,
                 token: TOKEN_ACCOUNT,
-                mintAuthority: { address: SIGNER, role: 3 } as any,
+                mintAuthority: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -494,7 +491,7 @@ describe("createToken2022Policy", () => {
             const ix2 = getMintToCheckedInstruction({
                 mint: MINT,
                 token: TOKEN_ACCOUNT,
-                mintAuthority: { address: SIGNER, role: 3 } as any,
+                mintAuthority: SIGNER,
                 amount: 2_000_000n,
                 decimals: 6,
             });
@@ -504,7 +501,7 @@ describe("createToken2022Policy", () => {
             const ix3 = getMintToCheckedInstruction({
                 mint: ANOTHER_MINT,
                 token: TOKEN_ACCOUNT,
-                mintAuthority: { address: SIGNER, role: 3 } as any,
+                mintAuthority: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -525,7 +522,7 @@ describe("createToken2022Policy", () => {
             const ix = getBurnInstruction({
                 account: TOKEN_ACCOUNT,
                 mint: MINT,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 500_000n,
             });
 
@@ -545,7 +542,7 @@ describe("createToken2022Policy", () => {
             const ix = getBurnInstruction({
                 account: TOKEN_ACCOUNT,
                 mint: MINT,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 2_000_000n,
             });
 
@@ -569,7 +566,7 @@ describe("createToken2022Policy", () => {
             const ix1 = getBurnCheckedInstruction({
                 account: TOKEN_ACCOUNT,
                 mint: MINT,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -579,7 +576,7 @@ describe("createToken2022Policy", () => {
             const ix2 = getBurnCheckedInstruction({
                 account: TOKEN_ACCOUNT,
                 mint: MINT,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 2_000_000n,
                 decimals: 6,
             });
@@ -589,7 +586,7 @@ describe("createToken2022Policy", () => {
             const ix3 = getBurnCheckedInstruction({
                 account: TOKEN_ACCOUNT,
                 mint: ANOTHER_MINT,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 500_000n,
                 decimals: 6,
             });
@@ -608,8 +605,8 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getSetAuthorityInstruction({
-                account: TOKEN_ACCOUNT,
-                currentAuthority: { address: SIGNER, role: 3 } as any,
+                owned: TOKEN_ACCOUNT,
+                owner: SIGNER,
                 authorityType: 0,
                 newAuthority: DELEGATE,
             });
@@ -628,8 +625,8 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getSetAuthorityInstruction({
-                account: TOKEN_ACCOUNT,
-                currentAuthority: { address: SIGNER, role: 3 } as any,
+                owned: TOKEN_ACCOUNT,
+                owner: SIGNER,
                 authorityType: 2, // AccountOwner
                 newAuthority: DELEGATE,
             });
@@ -655,9 +652,9 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 500_000n,
             });
 
@@ -680,9 +677,9 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 2_000_000n,
             });
 
@@ -699,9 +696,9 @@ describe("createToken2022Policy", () => {
             });
 
             const ix = getTransferInstruction({
-                source: { address: TOKEN_ACCOUNT, role: 0 } as any,
+                source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
-                owner: { address: SIGNER, role: 3 } as any,
+                authority: SIGNER,
                 amount: 1000n,
             });
 
@@ -710,4 +707,3 @@ describe("createToken2022Policy", () => {
         });
     });
 });
-

@@ -40,7 +40,7 @@ import {
 const validator = createPolicyValidator({
     // Global constraints
     global: {
-        signerRole: SignerRole.FeePayerOnly,  // Signer can only pay fees
+        signerRole: SignerRole.FeePayerOnly, // Signer can only pay fees
         maxInstructions: 10,
         maxSignatures: 3,
     },
@@ -53,9 +53,7 @@ const validator = createPolicyValidator({
                     // Allow transfers up to 1 SOL to specific addresses
                     [SystemInstruction.TransferSol]: {
                         maxLamports: 1_000_000_000n,
-                        allowedDestinations: [
-                            address("Treasury111111111111111111111111111111111"),
-                        ],
+                        allowedDestinations: [address("Treasury111111111111111111111111111111111")],
                     },
                     // Explicitly deny account creation
                     [SystemInstruction.CreateAccount]: false,
@@ -80,7 +78,7 @@ const validator = createPolicyValidator({
 try {
     await validator(compiledTransaction, {
         signer: address("YourSignerPublicKey111111111111111111111"),
-        principal: "user@example.com",  // Optional: authenticated user
+        principal: "user@example.com", // Optional: authenticated user
     });
     // Transaction is allowed - proceed with signing
 } catch (error) {
@@ -112,7 +110,7 @@ Global policies apply to the entire transaction:
 global: {
     // REQUIRED: How can the signer participate?
     signerRole: SignerRole.FeePayerOnly | SignerRole.ParticipantOnly | SignerRole.Any,
-    
+
     // Optional constraints
     minInstructions?: number,      // Default: 1 (prevents empty transactions)
     maxInstructions?: number,
@@ -128,13 +126,13 @@ global: {
 
 Each instruction can be configured as:
 
-| Config Value | Behavior |
-|-------------|----------|
-| `undefined` (omitted) | Instruction is **denied** (implicit) |
-| `false` | Instruction is **denied** (explicit, self-documenting) |
-| `true` | Instruction is **allowed** with no constraints |
-| `{ ...config }` | Instruction is **allowed** with declarative constraints |
-| `(ctx) => ...` | Instruction is **allowed** with custom validation logic |
+| Config Value          | Behavior                                                |
+| --------------------- | ------------------------------------------------------- |
+| `undefined` (omitted) | Instruction is **denied** (implicit)                    |
+| `false`               | Instruction is **denied** (explicit, self-documenting)  |
+| `true`                | Instruction is **allowed** with no constraints          |
+| `{ ...config }`       | Instruction is **allowed** with declarative constraints |
+| `(ctx) => ...`        | Instruction is **allowed** with custom validation logic |
 
 ```typescript
 instructions: {
@@ -142,17 +140,17 @@ instructions: {
         maxLamports: 1_000_000_000n,
         allowedDestinations: [TREASURY],
     },
-    
+
     [SystemInstruction.AdvanceNonceAccount]: true,
-    
+
     [SystemInstruction.CreateAccount]: false,
-    
+
     [SystemInstruction.Assign]: async (ctx) => {
         // Custom logic - return true to allow, string to deny with reason
         if (someCondition) return true;
         return "Custom validation failed";
     },
-    
+
     // Omitted instructions are implicitly denied
 }
 ```
@@ -167,7 +165,7 @@ programs: {
         policy: computeBudgetPolicy,
         required: true,  // Program must be present
     },
-    
+
     [SYSTEM_PROGRAM_ADDRESS]: {
         policy: systemPolicy,
         required: [SystemInstruction.TransferSol],  // This instruction must be present
@@ -287,13 +285,15 @@ import { createSolanaRpc } from "@solana/kit";
 
 const validator = createPolicyValidator({
     global: { signerRole: SignerRole.Any },
-    programs: { /* ... */ },
+    programs: {
+        /* ... */
+    },
     simulation: {
         rpc: createSolanaRpc("https://api.mainnet-beta.solana.com"),
         constraints: {
-            requireSuccess: true,           // Simulation must succeed
-            maxComputeUnits: 200_000,       // Max CU consumption
-            forbidSignerAccountClosure: true,  // Prevent signer drain attacks
+            requireSuccess: true, // Simulation must succeed
+            maxComputeUnits: 200_000, // Max CU consumption
+            forbidSignerAccountClosure: true, // Prevent signer drain attacks
         },
     },
 });

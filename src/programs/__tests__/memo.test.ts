@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createMemoPolicy, MEMO_PROGRAM_ADDRESS } from "../memo.js";
 import type { InstructionPolicyContext } from "../../types.js";
-import { address, type Instruction } from "@solana/kit";
+import { address } from "@solana/kit";
 
 // Valid base58 address
 const SIGNER = address("11111111111111111111111111111112");
@@ -325,4 +325,3 @@ describe("createMemoPolicy", () => {
         });
     });
 });
-
