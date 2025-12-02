@@ -32,6 +32,7 @@ export { SignerErrorCode, RemoteSignerError, type SignerErrorBody } from "./erro
 export {
     createPolicyValidator,
     type PolicyEngineConfig,
+    type ProgramConfig,
     type TransactionValidator,
 } from "./engine.js";
 
@@ -41,7 +42,17 @@ export {
 
 export { validateGlobalPolicy } from "./global/validator.js";
 export { validateSignerRole } from "./global/signer-role.js";
-export { validateTransactionLimits } from "./global/transaction-limits.js";
+export {
+    validateTransactionLimits,
+    type TransactionLimitsConfig,
+} from "./global/transaction-limits.js";
+export { validateSignerAllowlist } from "./global/signer-allowlist.js";
+export { validateAddressLookupTables } from "./global/alt-validation.js";
+export {
+    validateTransactionVersion,
+    detectTransactionVersion,
+    type TransactionVersion,
+} from "./global/version-validation.js";
 
 // ============================================================================
 // Program Policies

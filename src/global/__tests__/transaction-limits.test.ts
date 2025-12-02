@@ -44,6 +44,32 @@ const createContext = (numInstructions: number, _numSigners = 1): GlobalPolicyCo
 };
 
 describe("validateTransactionLimits", () => {
+    describe("minInstructions", () => {
+        it("should reject empty transactions by default", () => {
+            const ctx = createContext(0);
+            const result = validateTransactionLimits({}, ctx);
+            expect(result).toBe("Transaction cannot be empty (no instructions)");
+        });
+
+        it("should allow empty transactions when minInstructions is 0", () => {
+            const ctx = createContext(0);
+            const result = validateTransactionLimits({ minInstructions: 0 }, ctx);
+            expect(result).toBe(true);
+        });
+
+        it("should reject transactions below minimum", () => {
+            const ctx = createContext(2);
+            const result = validateTransactionLimits({ minInstructions: 3 }, ctx);
+            expect(result).toBe("Too few instructions: 2 < 3");
+        });
+
+        it("should allow transactions at exact minimum", () => {
+            const ctx = createContext(3);
+            const result = validateTransactionLimits({ minInstructions: 3 }, ctx);
+            expect(result).toBe(true);
+        });
+    });
+
     describe("maxInstructions", () => {
         it("should allow transactions within limit", () => {
             const ctx = createContext(3);
@@ -65,8 +91,23 @@ describe("validateTransactionLimits", () => {
 
         it("should allow unlimited instructions when not configured", () => {
             const ctx = createContext(100);
-            const result = validateTransactionLimits({}, ctx);
+            const result = validateTransactionLimits({ minInstructions: 0 }, ctx);
             expect(result).toBe(true);
+        });
+    });
+
+    describe("minSignatures", () => {
+        it("should allow transactions meeting minimum", () => {
+            const ctx = createContext(1);
+            const result = validateTransactionLimits({ minSignatures: 1 }, ctx);
+            expect(result).toBe(true);
+        });
+
+        it("should reject transactions below minimum", () => {
+            const ctx = createContext(1);
+            // The context has 1 signer (fee payer), so minSignatures: 2 should fail
+            const result = validateTransactionLimits({ minSignatures: 2 }, ctx);
+            expect(result).toBe("Too few signatures: 1 < 2");
         });
     });
 
@@ -84,11 +125,28 @@ describe("validateTransactionLimits", () => {
         });
     });
 
+    describe("maxAccounts", () => {
+        it("should allow transactions within account limit", () => {
+            const ctx = createContext(1);
+            // Transaction has fee payer + program = 2 accounts
+            const result = validateTransactionLimits({ maxAccounts: 10 }, ctx);
+            expect(result).toBe(true);
+        });
+
+        it("should reject transactions exceeding account limit", () => {
+            const ctx = createContext(1);
+            // Transaction has at least fee payer + program
+            const result = validateTransactionLimits({ maxAccounts: 1 }, ctx);
+            expect(result).toContain("Too many accounts");
+        });
+    });
+
     describe("combined limits", () => {
         it("should enforce all configured limits", () => {
             const ctx = createContext(3);
             const result = validateTransactionLimits(
                 {
+                    minInstructions: 1,
                     maxInstructions: 10,
                     maxSignatures: 5,
                 },

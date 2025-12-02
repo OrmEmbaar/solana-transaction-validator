@@ -92,11 +92,56 @@ export interface GlobalPolicyConfig {
     /** How the signer can participate in the transaction (REQUIRED) */
     signerRole: SignerRole;
 
-    /** Maximum number of instructions allowed */
+    /**
+     * Minimum number of instructions required.
+     * @default 1 (prevents empty transactions)
+     * Set to 0 to explicitly allow empty transactions.
+     */
+    minInstructions?: number;
+
+    /**
+     * Maximum number of instructions allowed.
+     * @default undefined (no limit)
+     */
     maxInstructions?: number;
 
-    /** Maximum number of signers required */
+    /**
+     * Minimum number of signers required.
+     * @default undefined (no minimum)
+     */
+    minSignatures?: number;
+
+    /**
+     * Maximum number of signers allowed.
+     * @default undefined (no limit)
+     */
     maxSignatures?: number;
+
+    /**
+     * Maximum total accounts in transaction (static + lookup).
+     * @default undefined (no limit)
+     * @recommended 64 (Solana transaction limit)
+     */
+    maxAccounts?: number;
+
+    /**
+     * Allowlist of signers permitted to sign.
+     * @default undefined (any signer allowed)
+     */
+    allowedSigners?: Address[];
+
+    /**
+     * Whether address lookup tables are allowed.
+     * @default false (secure by default - no hidden accounts)
+     */
+    allowAddressLookupTables?: boolean;
+
+    /**
+     * Allowed transaction versions.
+     * @default [0] (v0 transactions only - modern standard)
+     * @example ['legacy'] - legacy transactions only
+     */
+    allowedVersions?: (0 | "legacy")[];
 }
 
 /**

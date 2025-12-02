@@ -3,6 +3,7 @@ import type {
     Address,
     CompiledTransactionMessage,
     CompiledTransactionMessageWithLifetime,
+    Instruction,
 } from "@solana/kit";
 import type {
     BasePolicyContext,
@@ -13,12 +14,34 @@ import type {
     PolicyResult,
 } from "./types.js";
 import { RemoteSignerError, SignerErrorCode } from "./errors.js";
+import { validateGlobalPolicy } from "./global/validator.js";
+
+/**
+ * Configuration for a specific program.
+ * @template TDiscriminator - The instruction discriminator type (defaults to number | string)
+ */
+export interface ProgramConfig<TDiscriminator = number | string> {
+    /** The policy implementation for this program */
+    policy: InstructionPolicy;
+
+    /**
+     * Requirements for this program in the transaction.
+     * - `true`: Program MUST be present in the transaction.
+     * - `TDiscriminator[]`: Program MUST be present AND contain these instruction types.
+     * - `false` / `undefined`: Program is optional (policy runs only if present).
+     */
+    required?: boolean | TDiscriminator[];
+}
 
 export interface PolicyEngineConfig {
     /** Global constraints applied to all transactions (REQUIRED) */
     global: GlobalPolicyConfig;
-    /** Map of Program ID -> Policy for instruction-level validation */
-    programs?: Record<Address, InstructionPolicy>;
+
+    /**
+     * Map of Program ID -> Program Configuration.
+     * Strictly enforces the { policy, required } object structure.
+     */
+    programs?: Record<Address, ProgramConfig<number | string>>;
 }
 
 /**
@@ -37,7 +60,7 @@ export type TransactionValidator = (
  * @returns A validation function that can be reused for multiple requests
  */
 export function createPolicyValidator(config: PolicyEngineConfig): TransactionValidator {
-    const programPolicies = config.programs ?? {};
+    const programConfigs = config.programs ?? {};
 
     return async function validateTransaction(
         transaction: CompiledTransactionMessage & CompiledTransactionMessageWithLifetime,
@@ -54,25 +77,25 @@ export function createPolicyValidator(config: PolicyEngineConfig): TransactionVa
         };
 
         // 1. Validate Global Policy Config
-        // NOTE: Full validation delegated to external validator function
-        // Users should import validateGlobalPolicy from @solana-signer/policies
-        // and call it here, or use this basic stub
-        const globalResult = validateGlobalConfig(config.global, globalCtx);
+        const globalResult = validateGlobalPolicy(config.global, globalCtx);
         assertAllowed(globalResult, "Global policy rejected transaction");
 
-        // 2. Instruction Policies
+        // 2. Validate Required Programs and Instructions
+        validateRequiredPrograms(programConfigs, decompiledMessage.instructions);
+
+        // 3. Instruction Policies
         for (const [index, ix] of decompiledMessage.instructions.entries()) {
             const programId = ix.programAddress;
-            const policy = programPolicies[programId];
+            const programConfig = programConfigs[programId];
 
-            if (policy) {
+            if (programConfig) {
                 // Found specific policy for this program
                 const ixCtx: InstructionPolicyContext = {
                     ...globalCtx,
                     instruction: ix,
                     instructionIndex: index,
                 };
-                const result = await policy.validate(ixCtx);
+                const result = await programConfig.policy.validate(ixCtx);
                 assertAllowed(
                     result,
                     `Policy for program ${programId} rejected instruction ${index}`,
@@ -89,25 +112,58 @@ export function createPolicyValidator(config: PolicyEngineConfig): TransactionVa
 }
 
 /**
- * Basic stub validator for GlobalPolicyConfig.
- * For production, use validateGlobalPolicy from @solana-signer/policies.
+ * Validates that required programs and instructions are present in the transaction.
  */
-function validateGlobalConfig(config: GlobalPolicyConfig, ctx: GlobalPolicyContext): PolicyResult {
-    // Basic validation stub - only checks limits, not signer role
-    if (
-        config.maxInstructions &&
-        ctx.decompiledMessage.instructions.length > config.maxInstructions
-    ) {
-        return `Too many instructions: ${ctx.decompiledMessage.instructions.length} > ${config.maxInstructions}`;
+function validateRequiredPrograms(
+    programConfigs: Record<Address, ProgramConfig<number | string>>,
+    instructions: readonly Instruction[],
+): void {
+    // Build a map of program -> instruction discriminators present
+    const programInstructions = new Map<Address, Set<number | string>>();
+
+    for (const ix of instructions) {
+        if (!programInstructions.has(ix.programAddress)) {
+            programInstructions.set(ix.programAddress, new Set());
+        }
+        // Extract discriminator (first byte of instruction data)
+        if (ix.data && ix.data.length > 0) {
+            programInstructions.get(ix.programAddress)!.add(ix.data[0]);
+        }
     }
 
-    if (config.maxSignatures && ctx.transaction.header.numSignerAccounts > config.maxSignatures) {
-        return `Too many signatures: ${ctx.transaction.header.numSignerAccounts} > ${config.maxSignatures}`;
-    }
+    // Check each program config for requirements
+    for (const [programId, config] of Object.entries(programConfigs)) {
+        if (!config.required) continue;
 
-    // Stub: Accept all signer roles for now
-    // TODO: Full implementation in @solana-signer/policies
-    return true;
+        const presentInstructions = programInstructions.get(programId as Address);
+
+        if (config.required === true) {
+            // Program must be present
+            if (!presentInstructions) {
+                throw new RemoteSignerError(
+                    SignerErrorCode.POLICY_REJECTED,
+                    `Required program ${programId} is not present in transaction`,
+                );
+            }
+        } else if (Array.isArray(config.required)) {
+            // Program must be present with specific instructions
+            if (!presentInstructions) {
+                throw new RemoteSignerError(
+                    SignerErrorCode.POLICY_REJECTED,
+                    `Required program ${programId} is not present in transaction`,
+                );
+            }
+
+            for (const requiredIx of config.required) {
+                if (!presentInstructions.has(requiredIx)) {
+                    throw new RemoteSignerError(
+                        SignerErrorCode.POLICY_REJECTED,
+                        `Required instruction ${requiredIx} for program ${programId} is not present`,
+                    );
+                }
+            }
+        }
+    }
 }
 
 function assertAllowed(result: PolicyResult, defaultMessage: string): void {
