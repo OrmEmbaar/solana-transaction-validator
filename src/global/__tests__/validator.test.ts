@@ -226,26 +226,6 @@ describe("validateGlobalPolicy", () => {
         });
     });
 
-    describe("Signer Allowlist", () => {
-        it("should allow any signer when allowlist is not configured", () => {
-            const config: GlobalPolicyConfig = {
-                signerRole: SignerRole.Any,
-            };
-            const ctx = createTestContext();
-            expect(validateGlobalPolicy(config, ctx)).toBe(true);
-        });
-
-        it("should reject signer not in allowlist", () => {
-            const config: GlobalPolicyConfig = {
-                signerRole: SignerRole.Any,
-                allowedSigners: [address("5Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T")],
-            };
-            const ctx = createTestContext("4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T");
-            const result = validateGlobalPolicy(config, ctx);
-            expect(result).toContain("not in the allowed signers list");
-        });
-    });
-
     describe("Defaults", () => {
         it("should reject empty transactions by default (minInstructions=1)", () => {
             const config: GlobalPolicyConfig = {

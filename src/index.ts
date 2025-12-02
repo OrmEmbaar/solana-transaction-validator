@@ -46,7 +46,6 @@ export {
     validateTransactionLimits,
     type TransactionLimitsConfig,
 } from "./global/transaction-limits.js";
-export { validateSignerAllowlist } from "./global/signer-allowlist.js";
 export { validateTransactionVersion } from "./global/version-validation.js";
 export {
     validateAddressLookups,

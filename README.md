@@ -72,7 +72,6 @@ const validator = createTransactionValidator({
 try {
     await validator(compiledTransaction, {
         signer: address("YourSignerPublicKey111111111111111111111"),
-        principal: "user@example.com", // Optional: authenticated user
     });
     // Transaction is allowed - proceed with signing
 } catch (error) {
@@ -111,7 +110,6 @@ global: {
     minSignatures?: number,
     maxSignatures?: number,
     maxAccounts?: number,          // Total accounts in transaction
-    allowedSigners?: Address[],    // Allowlist of valid signers
     allowedVersions?: (0 | "legacy")[],  // Default: [0] (v0 only)
 
     // Address lookup tables (v0 only)
@@ -358,7 +356,9 @@ const validator = createTransactionValidator({
 });
 ```
 
-**Note:** Simulation requires `transactionMessage` (base64-encoded wire transaction) in the context.
+Simulation is **opt-in**: no RPC call is made unless you provide a `simulation` block _and_ include the compiled wire bytes when invoking the validator.
+
+> **Required context:** pass `transactionMessage` (base64-encoded wire transaction) alongside `signer` in the `baseContext`. Without it, simulation short-circuits with an error because it cannot re-run the transaction against RPC nodes.
 
 ## Address Lookup Tables
 

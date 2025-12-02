@@ -13,14 +13,8 @@ import type {
  * Base context shared by all validators.
  */
 export interface BaseValidationContext {
-    /** The authenticated principal requesting the signature */
-    principal?: string;
-
-    /** The public key of the signer being requested */
+    /** The public key of the signer being validated */
     signer: Address;
-
-    /** Arbitrary context from the request */
-    requestContext?: Record<string, unknown>;
 }
 
 /**
@@ -124,12 +118,6 @@ export interface GlobalPolicyConfig {
      * @recommended 64 (Solana transaction limit)
      */
     maxAccounts?: number;
-
-    /**
-     * Allowlist of signers permitted to sign.
-     * @default undefined (any signer allowed)
-     */
-    allowedSigners?: Address[];
 
     /**
      * Allowed transaction versions.
