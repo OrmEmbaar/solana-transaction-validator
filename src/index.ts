@@ -47,11 +47,8 @@ export {
     type TransactionLimitsConfig,
 } from "./global/transaction-limits.js";
 export { validateSignerAllowlist } from "./global/signer-allowlist.js";
-export {
-    validateTransactionVersion,
-    detectTransactionVersion,
-    type TransactionVersion,
-} from "./global/version-validation.js";
+export { validateTransactionVersion } from "./global/version-validation.js";
+export type { TransactionVersion } from "@solana/kit";
 
 // ============================================================================
 // Program Policies

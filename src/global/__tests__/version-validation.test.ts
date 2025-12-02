@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateTransactionVersion, detectTransactionVersion } from "../version-validation.js";
+import { validateTransactionVersion } from "../version-validation.js";
 import type { GlobalValidationContext } from "../../types.js";
 import {
     address,
@@ -77,20 +77,8 @@ const createLegacyContext = (): GlobalValidationContext => {
     };
 };
 
-describe("detectTransactionVersion", () => {
-    it("should detect v0 transactions", () => {
-        const ctx = createV0Context();
-        expect(detectTransactionVersion(ctx)).toBe(0);
-    });
-
-    it("should detect legacy transactions", () => {
-        const ctx = createLegacyContext();
-        expect(detectTransactionVersion(ctx)).toBe("legacy");
-    });
-});
-
 describe("validateTransactionVersion", () => {
-    describe("default behavior (v0 only)", () => {
+    describe("default (v0 only)", () => {
         it("should allow v0 transactions by default", () => {
             const ctx = createV0Context();
             const result = validateTransactionVersion(undefined, ctx);
@@ -101,11 +89,11 @@ describe("validateTransactionVersion", () => {
             const ctx = createLegacyContext();
             const result = validateTransactionVersion(undefined, ctx);
             expect(result).toContain("legacy");
-            expect(result).toContain("not allowed");
+            expect(result).toContain("Allowed: [0]");
         });
     });
 
-    describe("explicit v0 only", () => {
+    describe("v0 only", () => {
         it("should allow v0 transactions", () => {
             const ctx = createV0Context();
             const result = validateTransactionVersion([0], ctx);
@@ -116,7 +104,7 @@ describe("validateTransactionVersion", () => {
             const ctx = createLegacyContext();
             const result = validateTransactionVersion([0], ctx);
             expect(result).toContain("legacy");
-            expect(result).toContain("not allowed");
+            expect(result).toContain("Allowed: [0]");
         });
     });
 
@@ -130,19 +118,19 @@ describe("validateTransactionVersion", () => {
         it("should reject v0 transactions", () => {
             const ctx = createV0Context();
             const result = validateTransactionVersion(["legacy"], ctx);
-            expect(result).toContain("v0");
-            expect(result).toContain("not allowed");
+            expect(result).toContain("0");
+            expect(result).toContain("Allowed: [legacy]");
         });
     });
 
-    describe("both versions allowed", () => {
-        it("should allow v0 transactions", () => {
+    describe("multiple versions", () => {
+        it("should allow v0 when both allowed", () => {
             const ctx = createV0Context();
             const result = validateTransactionVersion([0, "legacy"], ctx);
             expect(result).toBe(true);
         });
 
-        it("should allow legacy transactions", () => {
+        it("should allow legacy when both allowed", () => {
             const ctx = createLegacyContext();
             const result = validateTransactionVersion([0, "legacy"], ctx);
             expect(result).toBe(true);

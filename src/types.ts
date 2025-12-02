@@ -6,6 +6,7 @@ import type {
     Instruction,
     TransactionMessageWithFeePayer,
     TransactionMessageWithLifetime,
+    TransactionVersion,
 } from "@solana/kit";
 
 /**
@@ -134,8 +135,9 @@ export interface GlobalPolicyConfig {
      * Allowed transaction versions.
      * @default [0] (v0 transactions only - modern standard)
      * @example ['legacy'] - legacy transactions only
+     * @example [0, 1] - v0 and v1, but not legacy
      */
-    allowedVersions?: (0 | "legacy")[];
+    allowedVersions?: readonly TransactionVersion[];
 }
 
 /**
