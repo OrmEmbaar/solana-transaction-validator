@@ -113,6 +113,13 @@ global: {
     maxAccounts?: number,          // Total accounts in transaction
     allowedSigners?: Address[],    // Allowlist of valid signers
     allowedVersions?: (0 | "legacy")[],  // Default: [0] (v0 only)
+
+    // Address lookup tables (v0 only)
+    addressLookupTables?: false | true | {
+        allowedTables?: Address[],      // Allowlist of trusted tables
+        maxTables?: number,             // Max tables per transaction
+        maxIndexedAccounts?: number,    // Max total indexed accounts
+    },  // Default: false (deny all - secure by default)
 }
 ```
 
@@ -353,6 +360,36 @@ const validator = createTransactionValidator({
 
 **Note:** Simulation requires `transactionMessage` (base64-encoded wire transaction) in the context.
 
+## Address Lookup Tables
+
+Control v0 transaction lookup table usage (defaults to deny all for security):
+
+```typescript
+const validator = createTransactionValidator({
+    global: {
+        signerRole: SignerRole.Any,
+
+        // Option 1: Deny all lookup tables (default if omitted)
+        addressLookupTables: false,
+
+        // Option 2: Allow any lookup tables (opt-out of validation)
+        addressLookupTables: true,
+
+        // Option 3: Allow specific tables with constraints (recommended)
+        addressLookupTables: {
+            allowedTables: [address("4QwSwNriKPrz8DLW4ju5uxC2TN5cksJx6tPUPj7DGLAW")],
+            maxTables: 2,
+            maxIndexedAccounts: 32,
+        },
+    },
+    programs: [
+        /* ... */
+    ],
+});
+```
+
+**Security Note:** This validates lookup table addresses and structure. To validate the actual resolved addresses inside tables, use simulation (which requires RPC).
+
 ### Recommended Guardrails
 
 Combine the new declarative knobs with structural limits and simulation to keep untrusted transactions predictable:
@@ -364,6 +401,7 @@ const validator = createTransactionValidator({
         minInstructions: 1,
         maxInstructions: 8,
         maxAccounts: 64,
+        addressLookupTables: false, // Deny lookup tables for maximum security
     },
     programs: [
         createSystemProgramValidator({

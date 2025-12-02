@@ -138,6 +138,38 @@ export interface GlobalPolicyConfig {
      * @example [0, 1] - v0 and v1, but not legacy
      */
     allowedVersions?: readonly TransactionVersion[];
+
+    /**
+     * Address lookup table policy (v0 transactions only).
+     * @default false (deny all lookup tables - secure by default)
+     * @example false - explicitly deny all lookup tables
+     * @example true - allow any lookup tables without validation
+     * @example { allowedTables: [...] } - allow specific tables with constraints
+     */
+    addressLookupTables?: boolean | AddressLookupConfig;
+}
+
+/**
+ * Configuration for address lookup table validation.
+ */
+export interface AddressLookupConfig {
+    /**
+     * Allowlist of trusted lookup table addresses.
+     * @default undefined (no allowlist - denies all tables)
+     */
+    allowedTables?: Address[];
+
+    /**
+     * Maximum number of lookup tables per transaction.
+     * @default undefined (no limit)
+     */
+    maxTables?: number;
+
+    /**
+     * Maximum total accounts indexed across all lookups.
+     * @default undefined (no limit)
+     */
+    maxIndexedAccounts?: number;
 }
 
 /**

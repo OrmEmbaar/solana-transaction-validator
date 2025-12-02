@@ -48,6 +48,10 @@ export {
 } from "./global/transaction-limits.js";
 export { validateSignerAllowlist } from "./global/signer-allowlist.js";
 export { validateTransactionVersion } from "./global/version-validation.js";
+export {
+    validateAddressLookups,
+    type AddressLookupConfig,
+} from "./global/address-lookup-validation.js";
 export type { TransactionVersion } from "@solana/kit";
 
 // ============================================================================
