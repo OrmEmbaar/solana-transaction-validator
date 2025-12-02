@@ -44,7 +44,7 @@ export interface TransactionValidatorConfig {
      * Each validator is self-contained with its program address and validation logic.
      * Programs not in this list are denied by default (strict allowlist).
      */
-    programs?: ProgramValidator[];
+    programs: ProgramValidator[];
 
     /**
      * Optional simulation-based validation.
@@ -73,7 +73,7 @@ export function createTransactionValidator(
 ): TransactionValidator {
     // Build internal map from array for efficient lookup
     const programMap = new Map<Address, ProgramValidator>();
-    for (const validator of config.programs ?? []) {
+    for (const validator of config.programs) {
         if (programMap.has(validator.programAddress)) {
             throw new Error(`Duplicate program validator for ${validator.programAddress}`);
         }
