@@ -12,16 +12,22 @@ import {
     getBurnInstruction,
     getBurnCheckedInstruction,
     getSetAuthorityInstruction,
+    getRevokeInstruction,
+    getCloseAccountInstruction,
+    getFreezeAccountInstruction,
+    getThawAccountInstruction,
 } from "@solana-program/token-2022";
 
 // Valid base58 addresses
 const SIGNER = address("11111111111111111111111111111112");
 const TOKEN_ACCOUNT = address("11111111111111111111111111111113");
 const DESTINATION = address("11111111111111111111111111111114");
+const ANOTHER_DESTINATION = address("11111111111111111111111111111119");
 const MINT = address("11111111111111111111111111111115");
 const ANOTHER_MINT = address("11111111111111111111111111111116");
 const DELEGATE = address("11111111111111111111111111111117");
 const ANOTHER_DELEGATE = address("11111111111111111111111111111118");
+const ANOTHER_OWNER = address("1111111111111111111111111111111A");
 
 // Helper to create a mock instruction context
 const createMockContext = (instruction: Instruction): InstructionValidationContext => {
@@ -633,6 +639,143 @@ describe("createToken2022Validator", () => {
 
             const result = await policy.validate(createMockContext(ix));
             expect(result).toContain("not in allowlist");
+        });
+    });
+
+    describe("Revoke validation", () => {
+        it("should allow revoke when account and owner are allowlisted", async () => {
+            const policy = createToken2022Validator({
+                instructions: {
+                    [Token2022Instruction.Revoke]: {
+                        allowedSources: [TOKEN_ACCOUNT],
+                        allowedOwners: [SIGNER],
+                    },
+                },
+            });
+
+            const ix = getRevokeInstruction({
+                source: TOKEN_ACCOUNT,
+                owner: SIGNER,
+            });
+
+            const result = await policy.validate(createMockContext(ix));
+            expect(result).toBe(true);
+        });
+
+        it("should reject revoke when owner not in allowlist", async () => {
+            const policy = createToken2022Validator({
+                instructions: {
+                    [Token2022Instruction.Revoke]: {
+                        allowedOwners: [SIGNER],
+                    },
+                },
+            });
+
+            const ix = getRevokeInstruction({
+                source: TOKEN_ACCOUNT,
+                owner: ANOTHER_OWNER,
+            });
+
+            const result = await policy.validate(createMockContext(ix));
+            expect(result).toContain("owner");
+            expect(result).toContain("not in allowlist");
+        });
+    });
+
+    describe("CloseAccount validation", () => {
+        it("should enforce destination and owner allowlists", async () => {
+            const policy = createToken2022Validator({
+                instructions: {
+                    [Token2022Instruction.CloseAccount]: {
+                        allowedAccounts: [TOKEN_ACCOUNT],
+                        allowedDestinations: [DESTINATION],
+                        allowedOwners: [SIGNER],
+                    },
+                },
+            });
+
+            const ix = getCloseAccountInstruction({
+                account: TOKEN_ACCOUNT,
+                destination: DESTINATION,
+                owner: SIGNER,
+            });
+
+            const result = await policy.validate(createMockContext(ix));
+            expect(result).toBe(true);
+
+            const disallowed = getCloseAccountInstruction({
+                account: TOKEN_ACCOUNT,
+                destination: ANOTHER_DESTINATION,
+                owner: SIGNER,
+            });
+
+            const disallowedResult = await policy.validate(createMockContext(disallowed));
+            expect(disallowedResult).toContain("destination");
+            expect(disallowedResult).toContain("not in allowlist");
+        });
+    });
+
+    describe("Freeze/Thaw validation", () => {
+        it("should enforce freeze allowlists", async () => {
+            const policy = createToken2022Validator({
+                instructions: {
+                    [Token2022Instruction.FreezeAccount]: {
+                        allowedAccounts: [TOKEN_ACCOUNT],
+                        allowedMints: [MINT],
+                        allowedAuthorities: [SIGNER],
+                    },
+                },
+            });
+
+            const ix = getFreezeAccountInstruction({
+                account: TOKEN_ACCOUNT,
+                mint: MINT,
+                owner: SIGNER,
+            });
+
+            const result = await policy.validate(createMockContext(ix));
+            expect(result).toBe(true);
+
+            const badAuthority = getFreezeAccountInstruction({
+                account: TOKEN_ACCOUNT,
+                mint: MINT,
+                owner: ANOTHER_OWNER,
+            });
+
+            const badResult = await policy.validate(createMockContext(badAuthority));
+            expect(badResult).toContain("authority");
+            expect(badResult).toContain("not in allowlist");
+        });
+
+        it("should enforce thaw allowlists", async () => {
+            const policy = createToken2022Validator({
+                instructions: {
+                    [Token2022Instruction.ThawAccount]: {
+                        allowedAccounts: [TOKEN_ACCOUNT],
+                        allowedMints: [MINT],
+                        allowedAuthorities: [SIGNER],
+                    },
+                },
+            });
+
+            const ix = getThawAccountInstruction({
+                account: TOKEN_ACCOUNT,
+                mint: MINT,
+                owner: SIGNER,
+            });
+
+            const result = await policy.validate(createMockContext(ix));
+            expect(result).toBe(true);
+
+            const badMint = getThawAccountInstruction({
+                account: TOKEN_ACCOUNT,
+                mint: ANOTHER_MINT,
+                owner: SIGNER,
+            });
+
+            const badResult = await policy.validate(createMockContext(badMint));
+            expect(badResult).toContain("mint");
+            expect(badResult).toContain("not in allowlist");
         });
     });
 

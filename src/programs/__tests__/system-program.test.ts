@@ -7,6 +7,10 @@ import {
     getCreateAccountInstruction,
     getAssignInstruction,
     getAllocateInstruction,
+    getWithdrawNonceAccountInstruction,
+    getAuthorizeNonceAccountInstruction,
+    getAdvanceNonceAccountInstruction,
+    getUpgradeNonceAccountInstruction,
 } from "@solana-program/system";
 
 // Use valid base58 addresses (32 ones = System Program format)
@@ -15,6 +19,12 @@ const DESTINATION = address("11111111111111111111111111111113");
 const ANOTHER_DESTINATION = address("11111111111111111111111111111114");
 const PROGRAM_OWNER = address("11111111111111111111111111111115");
 const ANOTHER_OWNER = address("11111111111111111111111111111116");
+const NONCE_ACCOUNT = address("11111111111111111111111111111117");
+const ANOTHER_NONCE_ACCOUNT = address("11111111111111111111111111111118");
+const NONCE_AUTHORITY = address("11111111111111111111111111111119");
+const ANOTHER_NONCE_AUTHORITY = address("1111111111111111111111111111111A");
+const NEW_NONCE_AUTHORITY = address("1111111111111111111111111111111B");
+const ANOTHER_NEW_NONCE_AUTHORITY = address("1111111111111111111111111111111C");
 
 // Helper to create a mock instruction context
 const createMockContext = (instruction: Instruction): InstructionValidationContext => {
@@ -79,6 +89,65 @@ const createAllocateInstruction = (space: bigint) => {
             role: 3,
         } as unknown as Parameters<typeof getAllocateInstruction>[0]["newAccount"],
         space,
+    });
+};
+
+const createWithdrawNonceInstruction = (
+    withdrawAmount: bigint,
+    {
+        nonceAccount = NONCE_ACCOUNT,
+        recipient = DESTINATION,
+        authority = NONCE_AUTHORITY,
+    }: {
+        nonceAccount?: Address;
+        recipient?: Address;
+        authority?: Address;
+    } = {},
+) => {
+    return getWithdrawNonceAccountInstruction({
+        nonceAccount,
+        recipientAccount: recipient,
+        nonceAuthority: {
+            address: authority,
+            role: 3,
+        } as unknown as Parameters<typeof getWithdrawNonceAccountInstruction>[0]["nonceAuthority"],
+        withdrawAmount,
+    });
+};
+
+const createAuthorizeNonceInstruction = (
+    newAuthority: Address = NEW_NONCE_AUTHORITY,
+    {
+        nonceAccount = NONCE_ACCOUNT,
+        authority = NONCE_AUTHORITY,
+    }: { nonceAccount?: Address; authority?: Address } = {},
+) => {
+    return getAuthorizeNonceAccountInstruction({
+        nonceAccount,
+        nonceAuthority: {
+            address: authority,
+            role: 3,
+        } as unknown as Parameters<typeof getAuthorizeNonceAccountInstruction>[0]["nonceAuthority"],
+        newNonceAuthority: newAuthority,
+    });
+};
+
+const createAdvanceNonceInstruction = ({
+    nonceAccount = NONCE_ACCOUNT,
+    authority = NONCE_AUTHORITY,
+}: { nonceAccount?: Address; authority?: Address } = {}) => {
+    return getAdvanceNonceAccountInstruction({
+        nonceAccount,
+        nonceAuthority: {
+            address: authority,
+            role: 3,
+        } as unknown as Parameters<typeof getAdvanceNonceAccountInstruction>[0]["nonceAuthority"],
+    });
+};
+
+const createUpgradeNonceInstruction = (nonceAccount: Address = NONCE_ACCOUNT) => {
+    return getUpgradeNonceAccountInstruction({
+        nonceAccount,
     });
 };
 
@@ -369,6 +438,111 @@ describe("createSystemProgramValidator", () => {
             const result = await policy.validate(ctx);
             expect(result).toContain("space");
             expect(result).toContain("exceeds limit");
+        });
+    });
+
+    describe("Nonce instruction validation", () => {
+        it("should enforce withdraw constraints", async () => {
+            const policy = createSystemProgramValidator({
+                instructions: {
+                    [SystemInstruction.WithdrawNonceAccount]: {
+                        maxLamports: 1_000n,
+                        allowedRecipients: [DESTINATION],
+                        allowedNonceAccounts: [NONCE_ACCOUNT],
+                        allowedAuthorities: [NONCE_AUTHORITY],
+                    },
+                },
+            });
+
+            expect(
+                await policy.validate(createMockContext(createWithdrawNonceInstruction(500n))),
+            ).toBe(true);
+
+            const result = await policy.validate(
+                createMockContext(createWithdrawNonceInstruction(2_000n)),
+            );
+            expect(result).toContain("exceeds limit");
+        });
+
+        it("should reject withdraw to non-allowlisted destination", async () => {
+            const policy = createSystemProgramValidator({
+                instructions: {
+                    [SystemInstruction.WithdrawNonceAccount]: {
+                        allowedRecipients: [DESTINATION],
+                    },
+                },
+            });
+
+            const ix = createWithdrawNonceInstruction(100n, {
+                recipient: ANOTHER_DESTINATION,
+            });
+            const result = await policy.validate(createMockContext(ix));
+            expect(result).toContain("recipient");
+            expect(result).toContain("not in allowlist");
+        });
+
+        it("should enforce authorize nonce allowlists", async () => {
+            const policy = createSystemProgramValidator({
+                instructions: {
+                    [SystemInstruction.AuthorizeNonceAccount]: {
+                        allowedNonceAccounts: [NONCE_ACCOUNT],
+                        allowedCurrentAuthorities: [NONCE_AUTHORITY],
+                        allowedNewAuthorities: [NEW_NONCE_AUTHORITY],
+                    },
+                },
+            });
+
+            expect(
+                await policy.validate(createMockContext(createAuthorizeNonceInstruction())),
+            ).toBe(true);
+
+            const disallowed = createAuthorizeNonceInstruction(ANOTHER_NEW_NONCE_AUTHORITY);
+            const result = await policy.validate(createMockContext(disallowed));
+            expect(result).toContain("new authority");
+            expect(result).toContain("not in allowlist");
+        });
+
+        it("should enforce upgrade nonce account allowlist", async () => {
+            const policy = createSystemProgramValidator({
+                instructions: {
+                    [SystemInstruction.UpgradeNonceAccount]: {
+                        allowedNonceAccounts: [NONCE_ACCOUNT],
+                    },
+                },
+            });
+
+            expect(await policy.validate(createMockContext(createUpgradeNonceInstruction()))).toBe(
+                true,
+            );
+
+            const result = await policy.validate(
+                createMockContext(createUpgradeNonceInstruction(ANOTHER_NONCE_ACCOUNT)),
+            );
+            expect(result).toContain("nonce account");
+            expect(result).toContain("not in allowlist");
+        });
+
+        it("should enforce advance nonce authority allowlist", async () => {
+            const policy = createSystemProgramValidator({
+                instructions: {
+                    [SystemInstruction.AdvanceNonceAccount]: {
+                        allowedNonceAccounts: [NONCE_ACCOUNT],
+                        allowedAuthorities: [NONCE_AUTHORITY],
+                    },
+                },
+            });
+
+            expect(await policy.validate(createMockContext(createAdvanceNonceInstruction()))).toBe(
+                true,
+            );
+
+            const result = await policy.validate(
+                createMockContext(
+                    createAdvanceNonceInstruction({ authority: ANOTHER_NONCE_AUTHORITY }),
+                ),
+            );
+            expect(result).toContain("authority");
+            expect(result).toContain("not in allowlist");
         });
     });
 

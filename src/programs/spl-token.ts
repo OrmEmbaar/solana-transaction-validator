@@ -21,6 +21,10 @@ import {
     parseBurnInstruction,
     parseBurnCheckedInstruction,
     parseSetAuthorityInstruction,
+    parseRevokeInstruction,
+    parseCloseAccountInstruction,
+    parseFreezeAccountInstruction,
+    parseThawAccountInstruction,
 } from "@solana-program/token";
 import type {
     InstructionValidationContext,
@@ -85,6 +89,34 @@ export interface SetAuthorityConfig {
     allowedAuthorityTypes?: number[];
 }
 
+/** Config for CloseAccount instruction */
+export interface CloseAccountConfig {
+    /** Allowlist of token accounts that can be closed */
+    allowedAccounts?: Address[];
+    /** Allowlist of destinations for reclaimed lamports */
+    allowedDestinations?: Address[];
+    /** Allowlist of owners allowed to close accounts */
+    allowedOwners?: Address[];
+}
+
+/** Config for FreezeAccount/ThawAccount instructions */
+export interface FreezeThawConfig {
+    /** Allowlist of token accounts that can be frozen/thawed */
+    allowedAccounts?: Address[];
+    /** Allowlist of mints that can be affected */
+    allowedMints?: Address[];
+    /** Allowlist of freeze authorities permitted to act */
+    allowedAuthorities?: Address[];
+}
+
+/** Config for Revoke instruction */
+export interface RevokeSimpleConfig {
+    /** Allowlist of token accounts whose delegates can be revoked */
+    allowedSources?: Address[];
+    /** Allowlist of owners permitted to perform revoke */
+    allowedOwners?: Address[];
+}
+
 /** Empty config for instructions with no additional constraints */
 export type NoConstraintsConfig = Record<string, never>;
 
@@ -99,11 +131,11 @@ export interface TokenInstructionConfigs {
     [TokenInstruction.Burn]: BurnConfig;
     [TokenInstruction.BurnChecked]: BurnConfig;
     [TokenInstruction.SetAuthority]: SetAuthorityConfig;
-    // Simple operations - no additional config
-    [TokenInstruction.Revoke]: NoConstraintsConfig;
-    [TokenInstruction.CloseAccount]: NoConstraintsConfig;
-    [TokenInstruction.FreezeAccount]: NoConstraintsConfig;
-    [TokenInstruction.ThawAccount]: NoConstraintsConfig;
+    // Simple operations with declarative controls
+    [TokenInstruction.Revoke]: RevokeSimpleConfig;
+    [TokenInstruction.CloseAccount]: CloseAccountConfig;
+    [TokenInstruction.FreezeAccount]: FreezeThawConfig;
+    [TokenInstruction.ThawAccount]: FreezeThawConfig;
     [TokenInstruction.SyncNative]: NoConstraintsConfig;
     // Initialization instructions
     [TokenInstruction.InitializeMint]: NoConstraintsConfig;
@@ -237,6 +269,9 @@ type InstructionConfig =
     | MintToConfig
     | BurnConfig
     | SetAuthorityConfig
+    | CloseAccountConfig
+    | FreezeThawConfig
+    | RevokeSimpleConfig
     | NoConstraintsConfig;
 
 function validateInstruction(
@@ -272,11 +307,19 @@ function validateInstruction(
         case TokenInstruction.SetAuthority:
             return validateSetAuthority(ixConfig as SetAuthorityConfig, ix);
 
-        // Simple operations - no additional validation needed
         case TokenInstruction.Revoke:
+            return validateRevoke(ixConfig as RevokeSimpleConfig, ix);
+
         case TokenInstruction.CloseAccount:
+            return validateCloseAccount(ixConfig as CloseAccountConfig, ix);
+
         case TokenInstruction.FreezeAccount:
+            return validateFreezeOrThaw(ixConfig as FreezeThawConfig, ix, "FreezeAccount");
+
         case TokenInstruction.ThawAccount:
+            return validateFreezeOrThaw(ixConfig as FreezeThawConfig, ix, "ThawAccount");
+
+        // Simple operations - no additional validation needed
         case TokenInstruction.SyncNative:
         case TokenInstruction.InitializeMint:
         case TokenInstruction.InitializeMint2:
@@ -309,7 +352,10 @@ function validateTransfer(config: TransferConfig, ix: ValidatedInstruction): Val
     return true;
 }
 
-function validateTransferChecked(config: TransferConfig, ix: ValidatedInstruction): ValidationResult {
+function validateTransferChecked(
+    config: TransferConfig,
+    ix: ValidatedInstruction,
+): ValidationResult {
     const parsed = parseTransferCheckedInstruction(ix);
 
     if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
@@ -434,13 +480,100 @@ function validateBurnChecked(config: BurnConfig, ix: ValidatedInstruction): Vali
     return true;
 }
 
-function validateSetAuthority(config: SetAuthorityConfig, ix: ValidatedInstruction): ValidationResult {
+function validateSetAuthority(
+    config: SetAuthorityConfig,
+    ix: ValidatedInstruction,
+): ValidationResult {
     const parsed = parseSetAuthorityInstruction(ix);
 
     if (config.allowedAuthorityTypes !== undefined) {
         const authorityType = parsed.data.authorityType;
         if (!config.allowedAuthorityTypes.includes(authorityType)) {
             return `SPL Token: SetAuthority type ${authorityType} not in allowlist`;
+        }
+    }
+
+    return true;
+}
+
+function validateCloseAccount(
+    config: CloseAccountConfig,
+    ix: ValidatedInstruction,
+): ValidationResult {
+    const parsed = parseCloseAccountInstruction(ix);
+
+    if (config.allowedAccounts !== undefined) {
+        const account = parsed.accounts.account.address;
+        if (!config.allowedAccounts.includes(account)) {
+            return `SPL Token: CloseAccount account ${account} not in allowlist`;
+        }
+    }
+
+    if (config.allowedDestinations !== undefined) {
+        const destination = parsed.accounts.destination.address;
+        if (!config.allowedDestinations.includes(destination)) {
+            return `SPL Token: CloseAccount destination ${destination} not in allowlist`;
+        }
+    }
+
+    if (config.allowedOwners !== undefined) {
+        const owner = parsed.accounts.owner.address;
+        if (!config.allowedOwners.includes(owner)) {
+            return `SPL Token: CloseAccount owner ${owner} not in allowlist`;
+        }
+    }
+
+    return true;
+}
+
+function validateFreezeOrThaw(
+    config: FreezeThawConfig,
+    ix: ValidatedInstruction,
+    instructionName: "FreezeAccount" | "ThawAccount",
+): ValidationResult {
+    const parsed =
+        instructionName === "FreezeAccount"
+            ? parseFreezeAccountInstruction(ix)
+            : parseThawAccountInstruction(ix);
+
+    if (config.allowedAccounts !== undefined) {
+        const account = parsed.accounts.account.address;
+        if (!config.allowedAccounts.includes(account)) {
+            return `SPL Token: ${instructionName} account ${account} not in allowlist`;
+        }
+    }
+
+    if (config.allowedMints !== undefined) {
+        const mint = parsed.accounts.mint.address;
+        if (!config.allowedMints.includes(mint)) {
+            return `SPL Token: ${instructionName} mint ${mint} not in allowlist`;
+        }
+    }
+
+    if (config.allowedAuthorities !== undefined) {
+        const authority = parsed.accounts.owner.address;
+        if (!config.allowedAuthorities.includes(authority)) {
+            return `SPL Token: ${instructionName} authority ${authority} not in allowlist`;
+        }
+    }
+
+    return true;
+}
+
+function validateRevoke(config: RevokeSimpleConfig, ix: ValidatedInstruction): ValidationResult {
+    const parsed = parseRevokeInstruction(ix);
+
+    if (config.allowedSources !== undefined) {
+        const source = parsed.accounts.source.address;
+        if (!config.allowedSources.includes(source)) {
+            return `SPL Token: Revoke source ${source} not in allowlist`;
+        }
+    }
+
+    if (config.allowedOwners !== undefined) {
+        const owner = parsed.accounts.owner.address;
+        if (!config.allowedOwners.includes(owner)) {
+            return `SPL Token: Revoke owner ${owner} not in allowlist`;
         }
     }
 

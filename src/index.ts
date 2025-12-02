@@ -79,6 +79,11 @@ export {
     type CreateAccountConfig,
     type AssignConfig,
     type AllocateConfig,
+    type AdvanceNonceAccountConfig,
+    type WithdrawNonceAccountConfig,
+    type InitializeNonceAccountConfig,
+    type AuthorizeNonceAccountConfig,
+    type UpgradeNonceAccountConfig,
 } from "./programs/system-program.js";
 
 // SPL Token
@@ -94,6 +99,9 @@ export {
     type MintToConfig as SplTokenMintToConfig,
     type BurnConfig as SplTokenBurnConfig,
     type SetAuthorityConfig as SplTokenSetAuthorityConfig,
+    type CloseAccountConfig as SplTokenCloseAccountConfig,
+    type FreezeThawConfig as SplTokenFreezeThawConfig,
+    type RevokeSimpleConfig as SplTokenRevokeConfig,
 } from "./programs/spl-token.js";
 
 // Token-2022
@@ -108,6 +116,9 @@ export {
     type MintToConfig as Token2022MintToConfig,
     type BurnConfig as Token2022BurnConfig,
     type SetAuthorityConfig as Token2022SetAuthorityConfig,
+    type CloseAccountConfig as Token2022CloseAccountConfig,
+    type FreezeThawConfig as Token2022FreezeThawConfig,
+    type RevokeSimpleConfig as Token2022RevokeConfig,
 } from "./programs/token-2022.js";
 
 // Compute Budget
@@ -121,6 +132,7 @@ export {
     type SetComputeUnitLimitConfig,
     type SetComputeUnitPriceConfig,
     type RequestHeapFrameConfig,
+    type SetLoadedAccountsDataSizeLimitConfig,
 } from "./programs/compute-budget.js";
 
 // Memo

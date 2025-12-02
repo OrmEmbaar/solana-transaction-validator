@@ -20,6 +20,11 @@ import {
     parseAllocateWithSeedInstruction,
     parseAssignWithSeedInstruction,
     parseTransferSolWithSeedInstruction,
+    parseWithdrawNonceAccountInstruction,
+    parseAuthorizeNonceAccountInstruction,
+    parseInitializeNonceAccountInstruction,
+    parseAdvanceNonceAccountInstruction,
+    parseUpgradeNonceAccountInstruction,
 } from "@solana-program/system";
 import type {
     InstructionValidationContext,
@@ -33,7 +38,9 @@ import { runCustomValidator } from "./utils.js";
 export { SYSTEM_PROGRAM_ADDRESS, SystemInstruction };
 
 // Program-specific context type
-export type SystemProgramValidationContext = InstructionValidationContext<typeof SYSTEM_PROGRAM_ADDRESS>;
+export type SystemProgramValidationContext = InstructionValidationContext<
+    typeof SYSTEM_PROGRAM_ADDRESS
+>;
 
 // Type for a fully validated instruction
 type ValidatedInstruction = Instruction &
@@ -74,6 +81,46 @@ export interface AllocateConfig {
     maxSpace?: bigint;
 }
 
+/** Base config for nonce-account touching instructions */
+export interface NonceAccountConfig {
+    /** Allowlist of nonce accounts that can be targeted */
+    allowedNonceAccounts?: Address[];
+}
+
+/** Config for nonce instructions that require an authority signer */
+export interface NonceAccountAuthorityConfig extends NonceAccountConfig {
+    /** Allowlist of nonce authorities permitted to sign */
+    allowedAuthorities?: Address[];
+}
+
+/** Config for WithdrawNonceAccount instruction */
+export interface WithdrawNonceAccountConfig extends NonceAccountAuthorityConfig {
+    /** Maximum lamports that can be withdrawn */
+    maxLamports?: bigint;
+    /** Allowlist of withdrawal destinations */
+    allowedRecipients?: Address[];
+}
+
+/** Config for AuthorizeNonceAccount instruction */
+export interface AuthorizeNonceAccountConfig extends NonceAccountConfig {
+    /** Allowlist of current authorities permitted to make the change */
+    allowedCurrentAuthorities?: Address[];
+    /** Allowlist of new authorities that can be assigned */
+    allowedNewAuthorities?: Address[];
+}
+
+/** Config for InitializeNonceAccount instruction */
+export interface InitializeNonceAccountConfig extends NonceAccountConfig {
+    /** Allowlist of nonce authorities that can be configured */
+    allowedNewAuthorities?: Address[];
+}
+
+/** Config for AdvanceNonceAccount instruction */
+export type AdvanceNonceAccountConfig = NonceAccountAuthorityConfig;
+
+/** Config for UpgradeNonceAccount instruction */
+export type UpgradeNonceAccountConfig = NonceAccountConfig;
+
 /** Empty config for instructions with no additional constraints */
 export type NoConstraintsConfig = Record<string, never>;
 
@@ -87,12 +134,12 @@ export interface SystemInstructionConfigs {
     [SystemInstruction.AssignWithSeed]: AssignConfig;
     [SystemInstruction.Allocate]: AllocateConfig;
     [SystemInstruction.AllocateWithSeed]: AllocateConfig;
-    // Nonce operations - no additional config needed
-    [SystemInstruction.AdvanceNonceAccount]: NoConstraintsConfig;
-    [SystemInstruction.WithdrawNonceAccount]: NoConstraintsConfig;
-    [SystemInstruction.InitializeNonceAccount]: NoConstraintsConfig;
-    [SystemInstruction.AuthorizeNonceAccount]: NoConstraintsConfig;
-    [SystemInstruction.UpgradeNonceAccount]: NoConstraintsConfig;
+    // Nonce operations
+    [SystemInstruction.AdvanceNonceAccount]: AdvanceNonceAccountConfig;
+    [SystemInstruction.WithdrawNonceAccount]: WithdrawNonceAccountConfig;
+    [SystemInstruction.InitializeNonceAccount]: InitializeNonceAccountConfig;
+    [SystemInstruction.AuthorizeNonceAccount]: AuthorizeNonceAccountConfig;
+    [SystemInstruction.UpgradeNonceAccount]: UpgradeNonceAccountConfig;
 }
 
 // ============================================================================
@@ -212,6 +259,11 @@ type InstructionConfig =
     | CreateAccountConfig
     | AssignConfig
     | AllocateConfig
+    | AdvanceNonceAccountConfig
+    | WithdrawNonceAccountConfig
+    | InitializeNonceAccountConfig
+    | AuthorizeNonceAccountConfig
+    | UpgradeNonceAccountConfig
     | NoConstraintsConfig;
 
 function validateInstruction(
@@ -244,20 +296,30 @@ function validateInstruction(
         case SystemInstruction.AllocateWithSeed:
             return validateAllocateWithSeed(ixConfig as AllocateConfig, ix);
 
-        // Nonce operations - no additional validation needed
         case SystemInstruction.AdvanceNonceAccount:
+            return validateAdvanceNonceAccount(ixConfig as AdvanceNonceAccountConfig, ix);
+
         case SystemInstruction.WithdrawNonceAccount:
+            return validateWithdrawNonceAccount(ixConfig as WithdrawNonceAccountConfig, ix);
+
         case SystemInstruction.InitializeNonceAccount:
+            return validateInitializeNonceAccount(ixConfig as InitializeNonceAccountConfig, ix);
+
         case SystemInstruction.AuthorizeNonceAccount:
+            return validateAuthorizeNonceAccount(ixConfig as AuthorizeNonceAccountConfig, ix);
+
         case SystemInstruction.UpgradeNonceAccount:
-            return true;
+            return validateUpgradeNonceAccount(ixConfig as UpgradeNonceAccountConfig, ix);
 
         default:
             return `System Program: Unknown instruction type ${ixType}`;
     }
 }
 
-function validateTransferSol(config: TransferSolConfig, ix: ValidatedInstruction): ValidationResult {
+function validateTransferSol(
+    config: TransferSolConfig,
+    ix: ValidatedInstruction,
+): ValidationResult {
     const parsed = parseTransferSolInstruction(ix);
 
     if (config.maxLamports !== undefined && parsed.data.amount > config.maxLamports) {
@@ -378,7 +440,10 @@ function validateAllocate(config: AllocateConfig, ix: ValidatedInstruction): Val
     return true;
 }
 
-function validateAllocateWithSeed(config: AllocateConfig, ix: ValidatedInstruction): ValidationResult {
+function validateAllocateWithSeed(
+    config: AllocateConfig,
+    ix: ValidatedInstruction,
+): ValidationResult {
     const parsed = parseAllocateWithSeedInstruction(ix);
 
     if (config.maxSpace !== undefined && parsed.data.space > config.maxSpace) {
@@ -386,4 +451,143 @@ function validateAllocateWithSeed(config: AllocateConfig, ix: ValidatedInstructi
     }
 
     return true;
+}
+
+function validateAdvanceNonceAccount(
+    config: AdvanceNonceAccountConfig,
+    ix: ValidatedInstruction,
+): ValidationResult {
+    const parsed = parseAdvanceNonceAccountInstruction(ix);
+    const nonceCheck = ensureAddressAllowed(
+        config.allowedNonceAccounts,
+        parsed.accounts.nonceAccount.address,
+        `System Program: AdvanceNonceAccount nonce account ${parsed.accounts.nonceAccount.address} not in allowlist`,
+    );
+    if (nonceCheck !== true) return nonceCheck;
+
+    const authorityCheck = ensureAddressAllowed(
+        config.allowedAuthorities,
+        parsed.accounts.nonceAuthority.address,
+        `System Program: AdvanceNonceAccount authority ${parsed.accounts.nonceAuthority.address} not in allowlist`,
+    );
+    if (authorityCheck !== true) return authorityCheck;
+
+    return true;
+}
+
+function validateWithdrawNonceAccount(
+    config: WithdrawNonceAccountConfig,
+    ix: ValidatedInstruction,
+): ValidationResult {
+    const parsed = parseWithdrawNonceAccountInstruction(ix);
+
+    const nonceCheck = ensureAddressAllowed(
+        config.allowedNonceAccounts,
+        parsed.accounts.nonceAccount.address,
+        `System Program: WithdrawNonceAccount nonce account ${parsed.accounts.nonceAccount.address} not in allowlist`,
+    );
+    if (nonceCheck !== true) return nonceCheck;
+
+    const authorityCheck = ensureAddressAllowed(
+        config.allowedAuthorities,
+        parsed.accounts.nonceAuthority.address,
+        `System Program: WithdrawNonceAccount authority ${parsed.accounts.nonceAuthority.address} not in allowlist`,
+    );
+    if (authorityCheck !== true) return authorityCheck;
+
+    const recipientCheck = ensureAddressAllowed(
+        config.allowedRecipients,
+        parsed.accounts.recipientAccount.address,
+        `System Program: WithdrawNonceAccount recipient ${parsed.accounts.recipientAccount.address} not in allowlist`,
+    );
+    if (recipientCheck !== true) return recipientCheck;
+
+    if (config.maxLamports !== undefined && parsed.data.withdrawAmount > config.maxLamports) {
+        return `System Program: WithdrawNonceAccount amount ${parsed.data.withdrawAmount} exceeds limit ${config.maxLamports}`;
+    }
+
+    return true;
+}
+
+function validateInitializeNonceAccount(
+    config: InitializeNonceAccountConfig,
+    ix: ValidatedInstruction,
+): ValidationResult {
+    const parsed = parseInitializeNonceAccountInstruction(ix);
+
+    const nonceCheck = ensureAddressAllowed(
+        config.allowedNonceAccounts,
+        parsed.accounts.nonceAccount.address,
+        `System Program: InitializeNonceAccount nonce account ${parsed.accounts.nonceAccount.address} not in allowlist`,
+    );
+    if (nonceCheck !== true) return nonceCheck;
+
+    const newAuthorityCheck = ensureAddressAllowed(
+        config.allowedNewAuthorities,
+        parsed.data.nonceAuthority,
+        `System Program: InitializeNonceAccount authority ${parsed.data.nonceAuthority} not in allowlist`,
+    );
+    if (newAuthorityCheck !== true) return newAuthorityCheck;
+
+    return true;
+}
+
+function validateAuthorizeNonceAccount(
+    config: AuthorizeNonceAccountConfig,
+    ix: ValidatedInstruction,
+): ValidationResult {
+    const parsed = parseAuthorizeNonceAccountInstruction(ix);
+
+    const nonceCheck = ensureAddressAllowed(
+        config.allowedNonceAccounts,
+        parsed.accounts.nonceAccount.address,
+        `System Program: AuthorizeNonceAccount nonce account ${parsed.accounts.nonceAccount.address} not in allowlist`,
+    );
+    if (nonceCheck !== true) return nonceCheck;
+
+    const currentAuthorityCheck = ensureAddressAllowed(
+        config.allowedCurrentAuthorities,
+        parsed.accounts.nonceAuthority.address,
+        `System Program: AuthorizeNonceAccount authority ${parsed.accounts.nonceAuthority.address} not in allowlist`,
+    );
+    if (currentAuthorityCheck !== true) return currentAuthorityCheck;
+
+    const newAuthorityCheck = ensureAddressAllowed(
+        config.allowedNewAuthorities,
+        parsed.data.newNonceAuthority,
+        `System Program: AuthorizeNonceAccount new authority ${parsed.data.newNonceAuthority} not in allowlist`,
+    );
+    if (newAuthorityCheck !== true) return newAuthorityCheck;
+
+    return true;
+}
+
+function validateUpgradeNonceAccount(
+    config: UpgradeNonceAccountConfig,
+    ix: ValidatedInstruction,
+): ValidationResult {
+    const parsed = parseUpgradeNonceAccountInstruction(ix);
+
+    const nonceCheck = ensureAddressAllowed(
+        config.allowedNonceAccounts,
+        parsed.accounts.nonceAccount.address,
+        `System Program: UpgradeNonceAccount nonce account ${parsed.accounts.nonceAccount.address} not in allowlist`,
+    );
+    if (nonceCheck !== true) return nonceCheck;
+
+    return true;
+}
+
+function ensureAddressAllowed(
+    allowlist: Address[] | undefined,
+    candidate: Address,
+    errorMessage: string,
+): ValidationResult {
+    if (!allowlist || allowlist.length === 0) {
+        return true;
+    }
+    if (allowlist.includes(candidate)) {
+        return true;
+    }
+    return errorMessage;
 }

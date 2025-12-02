@@ -9,7 +9,10 @@ const PROGRAM_ADDRESS = address("11111111111111111111111111111112");
 const ANOTHER_PROGRAM = address("11111111111111111111111111111113");
 const SIGNER_ADDRESS = address("11111111111111111111111111111114");
 
-const createMockContext = (programAddress: Address, data: Uint8Array): InstructionValidationContext => {
+const createMockContext = (
+    programAddress: Address,
+    data: Uint8Array,
+): InstructionValidationContext => {
     return {
         signer: SIGNER_ADDRESS,
         transaction: {} as InstructionValidationContext["transaction"],

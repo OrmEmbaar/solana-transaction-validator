@@ -6,6 +6,7 @@ import {
     getSetComputeUnitLimitInstruction,
     getSetComputeUnitPriceInstruction,
     getRequestHeapFrameInstruction,
+    getSetLoadedAccountsDataSizeLimitInstruction,
 } from "@solana-program/compute-budget";
 
 // Valid base58 address
@@ -244,6 +245,41 @@ describe("createComputeBudgetValidator", () => {
             const ix = getRequestHeapFrameInstruction({ bytes: 1_000_000 });
             const result = await policy.validate(createMockContext(ix));
             expect(result).toBe(true);
+        });
+    });
+
+    describe("SetLoadedAccountsDataSizeLimit validation", () => {
+        it("should allow bytes within limit", async () => {
+            const policy = createComputeBudgetValidator({
+                instructions: {
+                    [ComputeBudgetInstruction.SetLoadedAccountsDataSizeLimit]: {
+                        maxBytes: 65_536,
+                    },
+                },
+            });
+
+            const ix = getSetLoadedAccountsDataSizeLimitInstruction({
+                accountDataSizeLimit: 32_768,
+            });
+            const result = await policy.validate(createMockContext(ix));
+            expect(result).toBe(true);
+        });
+
+        it("should reject bytes exceeding limit", async () => {
+            const policy = createComputeBudgetValidator({
+                instructions: {
+                    [ComputeBudgetInstruction.SetLoadedAccountsDataSizeLimit]: {
+                        maxBytes: 65_536,
+                    },
+                },
+            });
+
+            const ix = getSetLoadedAccountsDataSizeLimitInstruction({
+                accountDataSizeLimit: 100_000,
+            });
+            const result = await policy.validate(createMockContext(ix));
+            expect(result).toContain("exceeds limit");
+            expect(result).toContain("100000");
         });
     });
 

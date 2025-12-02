@@ -1,5 +1,9 @@
 import type { ReadonlyUint8Array } from "@solana/kit";
-import type { InstructionValidationContext, ValidationResult, CustomValidationCallback } from "../types.js";
+import type {
+    InstructionValidationContext,
+    ValidationResult,
+    CustomValidationCallback,
+} from "../types.js";
 
 // Re-export for convenience
 export type { CustomValidationCallback };
@@ -34,7 +38,9 @@ export function composeValidators<TProgramAddress extends string = string>(
     first: CustomValidationCallback<TProgramAddress>,
     second: CustomValidationCallback<TProgramAddress>,
 ): CustomValidationCallback<TProgramAddress> {
-    return async (ctx: InstructionValidationContext<TProgramAddress>): Promise<ValidationResult> => {
+    return async (
+        ctx: InstructionValidationContext<TProgramAddress>,
+    ): Promise<ValidationResult> => {
         const firstResult = await first(ctx);
         if (firstResult !== true) return firstResult;
         return await second(ctx);

@@ -11,6 +11,7 @@ import {
     parseSetComputeUnitLimitInstruction,
     parseSetComputeUnitPriceInstruction,
     parseRequestHeapFrameInstruction,
+    parseSetLoadedAccountsDataSizeLimitInstruction,
 } from "@solana-program/compute-budget";
 import type {
     InstructionValidationContext,
@@ -53,6 +54,12 @@ export interface RequestHeapFrameConfig {
     maxBytes?: number;
 }
 
+/** Config for SetLoadedAccountsDataSizeLimit instruction */
+export interface SetLoadedAccountsDataSizeLimitConfig {
+    /** Maximum number of bytes that can be requested */
+    maxBytes?: number;
+}
+
 /** Empty config for instructions with no additional constraints */
 export type NoConstraintsConfig = Record<string, never>;
 
@@ -62,7 +69,7 @@ export interface ComputeBudgetInstructionConfigs {
     [ComputeBudgetInstruction.SetComputeUnitLimit]: SetComputeUnitLimitConfig;
     [ComputeBudgetInstruction.SetComputeUnitPrice]: SetComputeUnitPriceConfig;
     [ComputeBudgetInstruction.RequestHeapFrame]: RequestHeapFrameConfig;
-    [ComputeBudgetInstruction.SetLoadedAccountsDataSizeLimit]: NoConstraintsConfig;
+    [ComputeBudgetInstruction.SetLoadedAccountsDataSizeLimit]: SetLoadedAccountsDataSizeLimitConfig;
 }
 
 // ============================================================================
@@ -175,6 +182,7 @@ type InstructionConfig =
     | SetComputeUnitLimitConfig
     | SetComputeUnitPriceConfig
     | RequestHeapFrameConfig
+    | SetLoadedAccountsDataSizeLimitConfig
     | NoConstraintsConfig;
 
 function validateInstruction(
@@ -193,6 +201,11 @@ function validateInstruction(
             return validateRequestHeapFrame(ixConfig as RequestHeapFrameConfig, ix);
 
         case ComputeBudgetInstruction.SetLoadedAccountsDataSizeLimit:
+            return validateSetLoadedAccountsDataSizeLimit(
+                ixConfig as SetLoadedAccountsDataSizeLimitConfig,
+                ix,
+            );
+
         case ComputeBudgetInstruction.RequestUnits:
             // No additional validation for these instructions
             return true;
@@ -239,6 +252,19 @@ function validateRequestHeapFrame(
 
     if (config.maxBytes !== undefined && parsed.data.bytes > config.maxBytes) {
         return `Compute Budget: RequestHeapFrame bytes ${parsed.data.bytes} exceeds limit ${config.maxBytes}`;
+    }
+
+    return true;
+}
+
+function validateSetLoadedAccountsDataSizeLimit(
+    config: SetLoadedAccountsDataSizeLimitConfig,
+    ix: ValidatedInstruction,
+): ValidationResult {
+    const parsed = parseSetLoadedAccountsDataSizeLimitInstruction(ix);
+
+    if (config.maxBytes !== undefined && parsed.data.accountDataSizeLimit > config.maxBytes) {
+        return `Compute Budget: SetLoadedAccountsDataSizeLimit bytes ${parsed.data.accountDataSizeLimit} exceeds limit ${config.maxBytes}`;
     }
 
     return true;

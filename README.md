@@ -191,6 +191,28 @@ createSystemProgramValidator({
             maxSpace?: bigint,
             allowedOwnerPrograms?: Address[],
         },
+        [SystemInstruction.InitializeNonceAccount]: {
+            allowedNonceAccounts?: Address[],
+            allowedNewAuthorities?: Address[],
+        },
+        [SystemInstruction.AdvanceNonceAccount]: {
+            allowedNonceAccounts?: Address[],
+            allowedAuthorities?: Address[],
+        },
+        [SystemInstruction.WithdrawNonceAccount]: {
+            maxLamports?: bigint,
+            allowedRecipients?: Address[],
+            allowedNonceAccounts?: Address[],
+            allowedAuthorities?: Address[],
+        },
+        [SystemInstruction.AuthorizeNonceAccount]: {
+            allowedNonceAccounts?: Address[],
+            allowedCurrentAuthorities?: Address[],
+            allowedNewAuthorities?: Address[],
+        },
+        [SystemInstruction.UpgradeNonceAccount]: {
+            allowedNonceAccounts?: Address[],
+        },
         // ... other instructions
     },
     required?: boolean | SystemInstruction[],
@@ -217,10 +239,32 @@ createSplTokenValidator({
             allowedMints?: Address[],
             allowedDelegates?: Address[],
         },
+        [TokenInstruction.Revoke]: {
+            allowedSources?: Address[],
+            allowedOwners?: Address[],
+        },
+        [TokenInstruction.CloseAccount]: {
+            allowedAccounts?: Address[],
+            allowedDestinations?: Address[],
+            allowedOwners?: Address[],
+        },
+        [TokenInstruction.FreezeAccount]: {
+            allowedAccounts?: Address[],
+            allowedMints?: Address[],
+            allowedAuthorities?: Address[],
+        },
+        [TokenInstruction.ThawAccount]: {
+            allowedAccounts?: Address[],
+            allowedMints?: Address[],
+            allowedAuthorities?: Address[],
+        },
         // ... other instructions
     },
     required?: boolean | TokenInstruction[],
 });
+
+// Token-2022 exposes the same config surface (Transfer, Approve, Mint/Burn, Close/Revoke/Freeze/Thaw)
+createToken2022Validator({ instructions: { /* ... */ } });
 ```
 
 ### Compute Budget
@@ -237,6 +281,9 @@ createComputeBudgetValidator({
             maxMicroLamportsPerCu?: bigint,
         },
         [ComputeBudgetInstruction.RequestHeapFrame]: {
+            maxBytes?: number,
+        },
+        [ComputeBudgetInstruction.SetLoadedAccountsDataSizeLimit]: {
             maxBytes?: number,
         },
     },
@@ -305,6 +352,68 @@ const validator = createTransactionValidator({
 ```
 
 **Note:** Simulation requires `transactionMessage` (base64-encoded wire transaction) in the context.
+
+### Recommended Guardrails
+
+Combine the new declarative knobs with structural limits and simulation to keep untrusted transactions predictable:
+
+```typescript
+const validator = createTransactionValidator({
+    global: {
+        signerRole: SignerRole.FeePayerOnly,
+        minInstructions: 1,
+        maxInstructions: 8,
+        maxAccounts: 64,
+    },
+    programs: [
+        createSystemProgramValidator({
+            instructions: {
+                [SystemInstruction.WithdrawNonceAccount]: {
+                    maxLamports: 500_000_000n,
+                    allowedRecipients: [TREASURY],
+                    allowedNonceAccounts: [OPERATIONS_NONCE],
+                    allowedAuthorities: [TREASURY],
+                },
+                [SystemInstruction.AuthorizeNonceAccount]: {
+                    allowedNonceAccounts: [OPERATIONS_NONCE],
+                    allowedCurrentAuthorities: [TREASURY],
+                    allowedNewAuthorities: [TREASURY_ROTATION_BUFFER],
+                },
+            },
+        }),
+        createSplTokenValidator({
+            instructions: {
+                [TokenInstruction.CloseAccount]: {
+                    allowedAccounts: [USER_VAULT],
+                    allowedDestinations: [TREASURY],
+                    allowedOwners: [SIGNER],
+                },
+                [TokenInstruction.FreezeAccount]: {
+                    allowedAccounts: [USER_VAULT],
+                    allowedMints: [APP_TOKEN_MINT],
+                    allowedAuthorities: [FREEZE_AUTHORITY],
+                },
+            },
+        }),
+        createComputeBudgetValidator({
+            instructions: {
+                [ComputeBudgetInstruction.SetComputeUnitLimit]: { maxUnits: 1_000_000 },
+                [ComputeBudgetInstruction.SetLoadedAccountsDataSizeLimit]: { maxBytes: 65_536 },
+            },
+        }),
+    ],
+    simulation: {
+        rpc,
+        constraints: {
+            requireSuccess: true,
+            forbidSignerAccountClosure: true,
+            maxComputeUnits: 200_000,
+        },
+    },
+});
+```
+
+These defaults keep transactions bounded (≤8 instructions / 64 accounts) while ensuring nonce withdrawals, token closes, and compute-budget inflation cannot bypass the allowlists you define.
 
 ## Error Handling
 

@@ -21,6 +21,10 @@ import {
     parseBurnInstruction,
     parseBurnCheckedInstruction,
     parseSetAuthorityInstruction,
+    parseCloseAccountInstruction,
+    parseFreezeAccountInstruction,
+    parseThawAccountInstruction,
+    parseRevokeInstruction,
 } from "@solana-program/token-2022";
 import type {
     InstructionValidationContext,
@@ -35,7 +39,9 @@ import { runCustomValidator } from "./utils.js";
 export { TOKEN_2022_PROGRAM_ADDRESS, Token2022Instruction };
 
 // Program-specific context type
-export type Token2022ValidationContext = InstructionValidationContext<typeof TOKEN_2022_PROGRAM_ADDRESS>;
+export type Token2022ValidationContext = InstructionValidationContext<
+    typeof TOKEN_2022_PROGRAM_ADDRESS
+>;
 
 // Type for a fully validated instruction
 type ValidatedInstruction = Instruction &
@@ -86,6 +92,34 @@ export interface SetAuthorityConfig {
     allowedAuthorityTypes?: number[];
 }
 
+/** Config for CloseAccount instruction */
+export interface CloseAccountConfig {
+    /** Allowlist of token accounts that can be closed */
+    allowedAccounts?: Address[];
+    /** Allowlist of destinations for reclaimed lamports */
+    allowedDestinations?: Address[];
+    /** Allowlist of owners allowed to close accounts */
+    allowedOwners?: Address[];
+}
+
+/** Config for FreezeAccount/ThawAccount instructions */
+export interface FreezeThawConfig {
+    /** Allowlist of token accounts that can be frozen/thawed */
+    allowedAccounts?: Address[];
+    /** Allowlist of mints that can be affected */
+    allowedMints?: Address[];
+    /** Allowlist of authorities permitted to freeze/thaw */
+    allowedAuthorities?: Address[];
+}
+
+/** Config for Revoke instruction */
+export interface RevokeSimpleConfig {
+    /** Allowlist of token accounts whose delegates can be revoked */
+    allowedSources?: Address[];
+    /** Allowlist of owners permitted to issue revoke */
+    allowedOwners?: Address[];
+}
+
 /** Empty config for instructions with no additional constraints */
 export type NoConstraintsConfig = Record<string, never>;
 
@@ -100,6 +134,9 @@ type AnyInstructionConfig =
     | MintToConfig
     | BurnConfig
     | SetAuthorityConfig
+    | CloseAccountConfig
+    | FreezeThawConfig
+    | RevokeSimpleConfig
     | NoConstraintsConfig;
 
 /**
@@ -254,6 +291,18 @@ function validateInstruction(
         case Token2022Instruction.SetAuthority:
             return validateSetAuthority(ixConfig as SetAuthorityConfig, ix);
 
+        case Token2022Instruction.CloseAccount:
+            return validateCloseAccount(ixConfig as CloseAccountConfig, ix);
+
+        case Token2022Instruction.FreezeAccount:
+            return validateFreezeOrThaw(ixConfig as FreezeThawConfig, ix, "FreezeAccount");
+
+        case Token2022Instruction.ThawAccount:
+            return validateFreezeOrThaw(ixConfig as FreezeThawConfig, ix, "ThawAccount");
+
+        case Token2022Instruction.Revoke:
+            return validateRevoke(ixConfig as RevokeSimpleConfig, ix);
+
         // All other instructions - no additional validation needed
         default:
             return true;
@@ -270,7 +319,10 @@ function validateTransfer(config: TransferConfig, ix: ValidatedInstruction): Val
     return true;
 }
 
-function validateTransferChecked(config: TransferConfig, ix: ValidatedInstruction): ValidationResult {
+function validateTransferChecked(
+    config: TransferConfig,
+    ix: ValidatedInstruction,
+): ValidationResult {
     const parsed = parseTransferCheckedInstruction(ix);
 
     if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
@@ -389,13 +441,100 @@ function validateBurnChecked(config: BurnConfig, ix: ValidatedInstruction): Vali
     return true;
 }
 
-function validateSetAuthority(config: SetAuthorityConfig, ix: ValidatedInstruction): ValidationResult {
+function validateSetAuthority(
+    config: SetAuthorityConfig,
+    ix: ValidatedInstruction,
+): ValidationResult {
     const parsed = parseSetAuthorityInstruction(ix);
 
     if (config.allowedAuthorityTypes !== undefined) {
         const authorityType = parsed.data.authorityType;
         if (!config.allowedAuthorityTypes.includes(authorityType)) {
             return `Token-2022: SetAuthority type ${authorityType} not in allowlist`;
+        }
+    }
+
+    return true;
+}
+
+function validateCloseAccount(
+    config: CloseAccountConfig,
+    ix: ValidatedInstruction,
+): ValidationResult {
+    const parsed = parseCloseAccountInstruction(ix);
+
+    if (config.allowedAccounts !== undefined) {
+        const account = parsed.accounts.account.address;
+        if (!config.allowedAccounts.includes(account)) {
+            return `Token-2022: CloseAccount account ${account} not in allowlist`;
+        }
+    }
+
+    if (config.allowedDestinations !== undefined) {
+        const destination = parsed.accounts.destination.address;
+        if (!config.allowedDestinations.includes(destination)) {
+            return `Token-2022: CloseAccount destination ${destination} not in allowlist`;
+        }
+    }
+
+    if (config.allowedOwners !== undefined) {
+        const owner = parsed.accounts.owner.address;
+        if (!config.allowedOwners.includes(owner)) {
+            return `Token-2022: CloseAccount owner ${owner} not in allowlist`;
+        }
+    }
+
+    return true;
+}
+
+function validateFreezeOrThaw(
+    config: FreezeThawConfig,
+    ix: ValidatedInstruction,
+    instructionName: "FreezeAccount" | "ThawAccount",
+): ValidationResult {
+    const parsed =
+        instructionName === "FreezeAccount"
+            ? parseFreezeAccountInstruction(ix)
+            : parseThawAccountInstruction(ix);
+
+    if (config.allowedAccounts !== undefined) {
+        const account = parsed.accounts.account.address;
+        if (!config.allowedAccounts.includes(account)) {
+            return `Token-2022: ${instructionName} account ${account} not in allowlist`;
+        }
+    }
+
+    if (config.allowedMints !== undefined) {
+        const mint = parsed.accounts.mint.address;
+        if (!config.allowedMints.includes(mint)) {
+            return `Token-2022: ${instructionName} mint ${mint} not in allowlist`;
+        }
+    }
+
+    if (config.allowedAuthorities !== undefined) {
+        const authority = parsed.accounts.owner.address;
+        if (!config.allowedAuthorities.includes(authority)) {
+            return `Token-2022: ${instructionName} authority ${authority} not in allowlist`;
+        }
+    }
+
+    return true;
+}
+
+function validateRevoke(config: RevokeSimpleConfig, ix: ValidatedInstruction): ValidationResult {
+    const parsed = parseRevokeInstruction(ix);
+
+    if (config.allowedSources !== undefined) {
+        const source = parsed.accounts.source.address;
+        if (!config.allowedSources.includes(source)) {
+            return `Token-2022: Revoke source ${source} not in allowlist`;
+        }
+    }
+
+    if (config.allowedOwners !== undefined) {
+        const owner = parsed.accounts.owner.address;
+        if (!config.allowedOwners.includes(owner)) {
+            return `Token-2022: Revoke owner ${owner} not in allowlist`;
         }
     }
 
