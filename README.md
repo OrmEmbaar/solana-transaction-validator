@@ -426,11 +426,13 @@ test/
 ### Test Coverage
 
 **Unit Tests:**
+
 - Transaction validator engine orchestration
 - Program allowlist enforcement
 - Required programs/instructions validation
 
 **Integration Tests - Malicious Scenarios:**
+
 - **Unauthorized Program Attacks** - Unknown programs, malicious token programs, BPF loaders
 - **Dangerous Instructions** - System Program attacks (assign, create account, transfer limits)
 - **Token Attacks** - SPL Token authority changes, excessive approvals, account closures
@@ -440,6 +442,7 @@ test/
 - **Custom Program Discriminators** - Unknown/wrong discriminators
 
 **Integration Tests - Valid Scenarios:**
+
 - **System Program** - Compliant transfers, account creation, allocations
 - **SPL Token** - Transfers, approvals, burns within limits
 - **Compute Budget** - Standard priority fees and CU settings
@@ -448,6 +451,7 @@ test/
 - **Custom Programs** - Allowed discriminator patterns
 
 **Integration Tests - Simulation Validation:**
+
 - **Failed Simulations** - Transactions with invalid accounts
 - **Compute Unit Overruns** - Exceeding maxComputeUnits limits
 - **Account Closure** - Detecting signer account drainage
