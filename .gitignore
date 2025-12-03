@@ -24,3 +24,6 @@ pnpm-debug.log*
 # IDE
 .idea
 .vscode
+
+# Test ledger
+test-ledger
