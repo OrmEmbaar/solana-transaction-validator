@@ -97,8 +97,6 @@ describe("validateTransactionLimits", () => {
         });
     });
 
-
-
     describe("combined limits", () => {
         it("should enforce all configured limits", () => {
             const ctx = createContext(3);

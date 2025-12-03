@@ -17,7 +17,6 @@ import {
     setTransactionMessageLifetimeUsingBlockhash,
     appendTransactionMessageInstruction,
     setTransactionMessageFeePayer,
-    
     lamports,
     createNoopSigner,
     type Blockhash,
@@ -99,8 +98,7 @@ describe("Valid Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(transferIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -130,8 +128,7 @@ describe("Valid Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(transferIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -167,8 +164,7 @@ describe("Valid Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(createAccountIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -199,8 +195,7 @@ describe("Valid Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(allocateIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -239,8 +234,7 @@ describe("Valid Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(transferIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -276,8 +270,7 @@ describe("Valid Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(transferIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -311,8 +304,7 @@ describe("Valid Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(approveIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -343,8 +335,7 @@ describe("Valid Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(burnIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -374,8 +365,7 @@ describe("Valid Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(computeBudgetIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -403,8 +393,7 @@ describe("Valid Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(computeBudgetIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -452,8 +441,7 @@ describe("Valid Transaction Integration Tests", () => {
                         tx,
                     ),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -499,8 +487,7 @@ describe("Valid Transaction Integration Tests", () => {
                         tx,
                     ),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -547,8 +534,7 @@ describe("Valid Transaction Integration Tests", () => {
                         tx,
                     ),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -582,8 +568,7 @@ describe("Valid Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(transferIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -615,8 +600,7 @@ describe("Valid Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(transferIx, tx),
                 (tx) => setTransactionMessageFeePayer(VICTIM_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -648,8 +632,7 @@ describe("Valid Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(transferIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
@@ -690,8 +673,7 @@ describe("Valid Transaction Integration Tests", () => {
                         tx,
                     ),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();

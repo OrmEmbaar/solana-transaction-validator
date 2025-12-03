@@ -105,9 +105,9 @@ describe("PolicyEngine", () => {
         const programId = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
         const tx = createTestTransaction(programId);
 
-        await expect(
-            validator(tx, address("11111111111111111111111111111111")),
-        ).rejects.toThrow(/unauthorized program/);
+        await expect(validator(tx, address("11111111111111111111111111111111"))).rejects.toThrow(
+            /unauthorized program/,
+        );
     });
 
     it("should fail if a program policy returns false", async () => {
@@ -126,9 +126,9 @@ describe("PolicyEngine", () => {
 
         const tx = createTestTransaction(programId);
 
-        await expect(
-            validator(tx, address("11111111111111111111111111111111")),
-        ).rejects.toThrow("Token policy says no");
+        await expect(validator(tx, address("11111111111111111111111111111111"))).rejects.toThrow(
+            "Token policy says no",
+        );
     });
 
     it("should throw on duplicate program policies", () => {

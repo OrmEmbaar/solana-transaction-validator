@@ -8,10 +8,7 @@ import { isInstructionWithAccounts } from "@solana/kit";
  * @param ctx - The global policy context
  * @returns ValidationResult (true if allowed, string with reason if denied)
  */
-export function validateSignerRole(
-    role: SignerRole,
-    ctx: ValidationContext,
-): ValidationResult {
+export function validateSignerRole(role: SignerRole, ctx: ValidationContext): ValidationResult {
     // Determine if signer is the fee payer
     const isFeePayer = ctx.decompiledMessage.feePayer.address === ctx.signer;
 

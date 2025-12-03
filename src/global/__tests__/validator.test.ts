@@ -84,7 +84,6 @@ describe("validateGlobalPolicy", () => {
             const result = validateGlobalPolicy(config, ctx);
             expect(result).toContain("Too many instructions");
         });
-
     });
 
     describe("Signer Role Validation", () => {
@@ -162,8 +161,8 @@ describe("validateGlobalPolicy", () => {
             const decompiledMessage = decompileTransactionMessage(compiled);
             const ctxAsParticipant: ValidationContext = {
                 signer: address(signerAddr),
-        transaction: {} as ValidationContext["transaction"],
-        compiledMessage: compiled,
+                transaction: {} as ValidationContext["transaction"],
+                compiledMessage: compiled,
                 decompiledMessage,
             };
 
