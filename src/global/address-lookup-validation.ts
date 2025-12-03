@@ -1,5 +1,5 @@
 import type { Address } from "@solana/kit";
-import type { GlobalValidationContext, ValidationResult } from "../types.js";
+import type { ValidationContext, ValidationResult } from "../types.js";
 
 /**
  * Configuration for address lookup table validation.
@@ -39,16 +39,16 @@ export interface AddressLookupConfig {
  */
 export function validateAddressLookups(
     config: boolean | AddressLookupConfig | undefined,
-    ctx: GlobalValidationContext,
+    ctx: ValidationContext,
 ): ValidationResult {
     // Only v0 transactions have lookup tables
     // Use version check for type narrowing
-    if (ctx.transaction.version !== 0) {
+    if (ctx.compiledMessage.version !== 0) {
         return true; // Legacy transactions don't support lookup tables
     }
 
     // Type is now narrowed - safe to access addressTableLookups
-    const lookups = ctx.transaction.addressTableLookups || [];
+    const lookups = ctx.compiledMessage.addressTableLookups || [];
 
     // No lookups present - always allowed
     if (lookups.length === 0) {

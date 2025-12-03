@@ -16,6 +16,7 @@ const createMockContext = (
     return {
         signer: SIGNER_ADDRESS,
         transaction: {} as InstructionValidationContext["transaction"],
+        compiledMessage: {} as InstructionValidationContext["compiledMessage"],
         decompiledMessage: {} as InstructionValidationContext["decompiledMessage"],
         instruction: {
             programAddress,

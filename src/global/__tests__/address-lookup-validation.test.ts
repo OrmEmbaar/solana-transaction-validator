@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { validateAddressLookups } from "../address-lookup-validation.js";
-import type { GlobalValidationContext } from "../../types.js";
-import { address, type Address, type CompiledTransactionMessage } from "@solana/kit";
+import type { ValidationContext } from "../../types.js";
+import { address, type Address } from "@solana/kit";
+import type { Base64EncodedWireTransaction } from "@solana/kit";
 
 const PAYER = address("4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T");
 const TABLE_1 = address("9YdVSNrDsK91cuGCeN4SoQTyLnFD9nqjJmUvZqFJqNXz");
@@ -9,8 +10,8 @@ const TABLE_2 = address("8YdVSNrDsK91cuGCeN4SoQTyLnFD9nqjJmUvZqFJqNX8");
 const TABLE_3 = address("7YdVSNrDsK91cuGCeN4SoQTyLnFD9nqjJmUvZqFJqNX7");
 
 // Helper to create a mock legacy transaction context
-const createLegacyContext = (): GlobalValidationContext => {
-    const compiled: CompiledTransactionMessage = {
+const createLegacyContext = (): ValidationContext => {
+    const compiled: ValidationContext["compiledMessage"] = {
         version: "legacy",
         staticAccounts: [PAYER, address("11111111111111111111111111111111")],
         header: {
@@ -19,14 +20,16 @@ const createLegacyContext = (): GlobalValidationContext => {
             numReadonlySignerAccounts: 0,
         },
         instructions: [{ programAddressIndex: 1, accountIndices: [], data: new Uint8Array([]) }],
+        lifetimeToken: "test",
     };
 
     // We don't need full decompilation for these tests
-    const decompiledMessage = {} as GlobalValidationContext["decompiledMessage"];
+    const decompiledMessage = {} as ValidationContext["decompiledMessage"];
 
     return {
         signer: PAYER,
-        transaction: compiled,
+        transaction: "" as Base64EncodedWireTransaction,
+        compiledMessage: compiled,
         decompiledMessage,
     };
 };
@@ -34,8 +37,8 @@ const createLegacyContext = (): GlobalValidationContext => {
 // Helper to create a mock v0 transaction context with lookup tables
 const createV0ContextWithLookups = (
     tables: Array<{ address: Address; readonlyIndexes: number[]; writableIndexes: number[] }>,
-): GlobalValidationContext => {
-    const compiled: CompiledTransactionMessage = {
+): ValidationContext => {
+    const compiled = {
         version: 0,
         staticAccounts: [PAYER, address("11111111111111111111111111111111")],
         header: {
@@ -49,14 +52,16 @@ const createV0ContextWithLookups = (
             readonlyIndexes: t.readonlyIndexes,
             writableIndexes: t.writableIndexes,
         })),
-    };
+        lifetimeToken: "test",
+    } as ValidationContext["compiledMessage"];
 
     // We don't need full decompilation for these tests
-    const decompiledMessage = {} as GlobalValidationContext["decompiledMessage"];
+    const decompiledMessage = {} as ValidationContext["decompiledMessage"];
 
     return {
         signer: PAYER,
-        transaction: compiled,
+        transaction: "" as Base64EncodedWireTransaction,
+        compiledMessage: compiled,
         decompiledMessage,
     };
 };

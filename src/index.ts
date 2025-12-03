@@ -3,8 +3,8 @@
 // ============================================================================
 
 export type {
-    BaseValidationContext,
-    GlobalValidationContext,
+    TransactionInput,
+    ValidationContext,
     InstructionValidationContext,
     ValidationResult,
     CustomValidationCallback,

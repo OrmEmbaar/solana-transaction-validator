@@ -1,4 +1,4 @@
-import { SignerRole, type GlobalValidationContext, type ValidationResult } from "../types.js";
+import { SignerRole, type ValidationContext, type ValidationResult } from "../types.js";
 import { isInstructionWithAccounts } from "@solana/kit";
 
 /**
@@ -10,7 +10,7 @@ import { isInstructionWithAccounts } from "@solana/kit";
  */
 export function validateSignerRole(
     role: SignerRole,
-    ctx: GlobalValidationContext,
+    ctx: ValidationContext,
 ): ValidationResult {
     // Determine if signer is the fee payer
     const isFeePayer = ctx.decompiledMessage.feePayer.address === ctx.signer;

@@ -1,5 +1,5 @@
 import type { TransactionVersion } from "@solana/kit";
-import type { GlobalValidationContext, ValidationResult } from "../types.js";
+import type { ValidationContext, ValidationResult } from "../types.js";
 
 /**
  * Validates that the transaction version is allowed.
@@ -10,11 +10,11 @@ import type { GlobalValidationContext, ValidationResult } from "../types.js";
  */
 export function validateTransactionVersion(
     allowedVersions: readonly TransactionVersion[] = [0],
-    ctx: GlobalValidationContext,
+    ctx: ValidationContext,
 ): ValidationResult {
-    if (!allowedVersions.includes(ctx.transaction.version)) {
+    if (!allowedVersions.includes(ctx.compiledMessage.version)) {
         const allowed = allowedVersions.join(", ");
-        return `Transaction version ${ctx.transaction.version} is not allowed. Allowed: [${allowed}]`;
+        return `Transaction version ${ctx.compiledMessage.version} is not allowed. Allowed: [${allowed}]`;
     }
 
     return true;

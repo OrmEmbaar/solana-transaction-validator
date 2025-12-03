@@ -3,45 +3,49 @@ import type {
     Base64EncodedWireTransaction,
     BaseTransactionMessage,
     CompiledTransactionMessage,
+    CompiledTransactionMessageWithLifetime,
     Instruction,
+    ReadonlyUint8Array,
     TransactionMessageWithFeePayer,
     TransactionMessageWithLifetime,
     TransactionVersion,
 } from "@solana/kit";
 
 /**
- * Base context shared by all validators.
+ * Raw transaction input accepted by the validator.
+ * Either a base64-encoded wire transaction string or raw bytes.
  */
-export interface BaseValidationContext {
-    /** The public key of the signer being validated */
-    signer: Address;
-}
+export type TransactionInput = string | ReadonlyUint8Array;
 
 /**
- * Context for global validation (full transaction access).
+ * Context available to all validators.
+ * Built internally from the raw transaction input.
  */
-export interface GlobalValidationContext extends BaseValidationContext {
-    /** The compiled transaction message (low-level) */
-    transaction: CompiledTransactionMessage;
+export interface ValidationContext {
+    /** The public key of the signer being validated */
+    signer: Address;
 
-    /** The decompiled message (high-level, inspectable) */
+    /** The base64-encoded wire transaction (used for simulation) */
+    transaction: Base64EncodedWireTransaction;
+
+    /** The compiled transaction message (low-level, indexed accounts) */
+    compiledMessage: CompiledTransactionMessage & CompiledTransactionMessageWithLifetime;
+
+    /** The decompiled message (high-level, with resolved addresses) */
     decompiledMessage: BaseTransactionMessage &
         TransactionMessageWithFeePayer &
         TransactionMessageWithLifetime;
-
-    /** The raw wire transaction bytes */
-    transactionMessage?: Base64EncodedWireTransaction;
 }
 
 /**
  * Context for instruction-level validation.
- * Generic version that allows narrowing to specific program addresses.
+ * Extends ValidationContext with the specific instruction being validated.
  *
  * @template TProgramAddress - The program address type (narrows the instruction)
  */
 export interface InstructionValidationContext<
     TProgramAddress extends string = string,
-> extends GlobalValidationContext {
+> extends ValidationContext {
     /** The specific instruction being validated */
     instruction: Instruction<TProgramAddress>;
 
@@ -135,8 +139,6 @@ export enum SignerRole {
  *     signerRole: SignerRole.FeePayerOnly,
  *     minInstructions: 1,
  *     maxInstructions: 10,
- *     maxSignatures: 3,
- *     maxAccounts: 64,
  *     allowedVersions: [0],
  *     addressLookupTables: false,
  * };
@@ -158,25 +160,6 @@ export interface GlobalPolicyConfig {
      * @default undefined (no limit)
      */
     maxInstructions?: number;
-
-    /**
-     * Minimum number of signers required.
-     * @default undefined (no minimum)
-     */
-    minSignatures?: number;
-
-    /**
-     * Maximum number of signers allowed.
-     * @default undefined (no limit)
-     */
-    maxSignatures?: number;
-
-    /**
-     * Maximum total accounts in transaction (static + lookup).
-     * @default undefined (no limit)
-     * @recommended 64 (Solana transaction limit)
-     */
-    maxAccounts?: number;
 
     /**
      * Allowed transaction versions.
@@ -266,7 +249,7 @@ export interface SimulationConstraints {
  * A global validator validates the entire transaction context.
  */
 export interface GlobalValidator {
-    validate(ctx: GlobalValidationContext): Promise<ValidationResult> | ValidationResult;
+    validate(ctx: ValidationContext): Promise<ValidationResult> | ValidationResult;
 }
 
 /**

@@ -1,29 +1,22 @@
 import type { Rpc, SolanaRpcApi } from "@solana/kit";
-import type { GlobalValidationContext, ValidationResult, SimulationConstraints } from "../types.js";
+import type { ValidationContext, ValidationResult, SimulationConstraints } from "../types.js";
 
 /**
  * Validates a transaction using RPC simulation.
  * Called internally by the policy engine when simulation config is provided.
  *
- * Note: Requires `transactionMessage` (base64 encoded wire transaction) to be
- * provided in the GlobalValidationContext for simulation to work.
- *
  * @param constraints - Simulation-based constraints
- * @param ctx - The global policy context
+ * @param ctx - The validation context (includes base64 wire transaction)
  * @param rpc - RPC client for running simulations
  * @returns ValidationResult (true if allowed, string with reason if denied)
  */
 export async function validateSimulation(
     constraints: SimulationConstraints,
-    ctx: GlobalValidationContext,
+    ctx: ValidationContext,
     rpc: Rpc<SolanaRpcApi>,
 ): Promise<ValidationResult> {
-    // 1. Get base64 encoded transaction
-    // Require transactionMessage to be provided in context
-    if (!ctx.transactionMessage) {
-        return "Simulation requires transactionMessage in context";
-    }
-    const encodedTransaction = ctx.transactionMessage;
+    // Use the base64-encoded wire transaction from context
+    const encodedTransaction = ctx.transaction;
 
     try {
         // 2. Run simulation with signer account inspection
@@ -42,7 +35,14 @@ export async function validateSimulation(
         // 3. Check for simulation errors
         const requireSuccess = constraints.requireSuccess ?? true;
         if (requireSuccess && simulation.value.err) {
-            return `Simulation failed: ${JSON.stringify(simulation.value.err)}`;
+            // Format error for readability
+            const errorMsg =
+                typeof simulation.value.err === "object"
+                    ? JSON.stringify(simulation.value.err, (_, v) =>
+                          typeof v === "bigint" ? v.toString() : v,
+                      )
+                    : String(simulation.value.err);
+            return `Simulation failed: ${errorMsg}`;
         }
 
         // 4. Validate compute units

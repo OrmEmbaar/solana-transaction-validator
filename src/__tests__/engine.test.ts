@@ -3,20 +3,22 @@ import { createTransactionValidator } from "../engine.js";
 import { type ProgramValidator, SignerRole } from "../types.js";
 import {
     address,
-    compileTransactionMessage,
+    compileTransaction,
+    getBase64EncodedWireTransaction,
     pipe,
     createTransactionMessage,
     setTransactionMessageLifetimeUsingBlockhash,
     appendTransactionMessageInstruction,
     setTransactionMessageFeePayer,
     type Blockhash,
+    type Base64EncodedWireTransaction,
 } from "@solana/kit";
 
-// Helper to create a valid transaction message
+// Helper to create a valid wire transaction for testing
 const createTestTransaction = (
     programId = "11111111111111111111111111111111",
     instructionData = new Uint8Array([]),
-) => {
+): Base64EncodedWireTransaction => {
     const blockhash = {
         blockhash: "5c9TGe5te815W476jY7Z96PE5844626366663444346134646261393166" as Blockhash,
         lastValidBlockHeight: BigInt(0),
@@ -24,7 +26,7 @@ const createTestTransaction = (
     // Use a distinct, valid address for the fee payer
     const payer = address("4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T");
 
-    return pipe(
+    const txMessage = pipe(
         createTransactionMessage({ version: 0 }),
         (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
         (tx) =>
@@ -37,8 +39,11 @@ const createTestTransaction = (
                 tx,
             ),
         (tx) => setTransactionMessageFeePayer(payer, tx),
-        compileTransactionMessage,
     );
+
+    // Compile to Transaction (unsigned) and encode to base64 wire format
+    const transaction = compileTransaction(txMessage);
+    return getBase64EncodedWireTransaction(transaction);
 };
 
 // Helper to create a mock ProgramValidator
@@ -65,7 +70,7 @@ describe("PolicyEngine", () => {
         const tx = createTestTransaction();
 
         await expect(
-            validator(tx, { signer: address("11111111111111111111111111111111") }),
+            validator(tx, address("11111111111111111111111111111111")),
         ).resolves.not.toThrow();
     });
 
@@ -83,7 +88,7 @@ describe("PolicyEngine", () => {
         const tx = createTestTransaction(programId);
 
         await expect(
-            validator(tx, { signer: address("11111111111111111111111111111111") }),
+            validator(tx, address("11111111111111111111111111111111")),
         ).resolves.not.toThrow();
 
         expect(tokenPolicy.validate).toHaveBeenCalled();
@@ -101,7 +106,7 @@ describe("PolicyEngine", () => {
         const tx = createTestTransaction(programId);
 
         await expect(
-            validator(tx, { signer: address("11111111111111111111111111111111") }),
+            validator(tx, address("11111111111111111111111111111111")),
         ).rejects.toThrow(/unauthorized program/);
     });
 
@@ -122,7 +127,7 @@ describe("PolicyEngine", () => {
         const tx = createTestTransaction(programId);
 
         await expect(
-            validator(tx, { signer: address("11111111111111111111111111111111") }),
+            validator(tx, address("11111111111111111111111111111111")),
         ).rejects.toThrow("Token policy says no");
     });
 
@@ -152,7 +157,7 @@ describe("PolicyEngine", () => {
 
             const tx = createTestTransaction(programId);
             await expect(
-                validator(tx, { signer: address("11111111111111111111111111111111") }),
+                validator(tx, address("11111111111111111111111111111111")),
             ).resolves.not.toThrow();
         });
 
@@ -170,7 +175,7 @@ describe("PolicyEngine", () => {
 
             const tx = createTestTransaction(actualProgramId);
             await expect(
-                validator(tx, { signer: address("11111111111111111111111111111111") }),
+                validator(tx, address("11111111111111111111111111111111")),
             ).rejects.toThrow(/Required program.*not present/);
         });
     });
@@ -188,7 +193,7 @@ describe("PolicyEngine", () => {
             // Create transaction with instruction data starting with 0
             const tx = createTestTransaction(programId, new Uint8Array([0, 1, 2]));
             await expect(
-                validator(tx, { signer: address("11111111111111111111111111111111") }),
+                validator(tx, address("11111111111111111111111111111111")),
             ).resolves.not.toThrow();
         });
 
@@ -204,7 +209,7 @@ describe("PolicyEngine", () => {
             // Create transaction with instruction data starting with 0 (not 5)
             const tx = createTestTransaction(programId, new Uint8Array([0, 1, 2]));
             await expect(
-                validator(tx, { signer: address("11111111111111111111111111111111") }),
+                validator(tx, address("11111111111111111111111111111111")),
             ).rejects.toThrow(/Required instruction 5.*not present/);
         });
 
@@ -227,7 +232,7 @@ describe("PolicyEngine", () => {
             };
             const payer = address("4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T");
 
-            const tx = pipe(
+            const txMessage = pipe(
                 createTransactionMessage({ version: 0 }),
                 (m) => setTransactionMessageLifetimeUsingBlockhash(blockhash, m),
                 (m) =>
@@ -241,11 +246,12 @@ describe("PolicyEngine", () => {
                         m,
                     ),
                 (m) => setTransactionMessageFeePayer(payer, m),
-                compileTransactionMessage,
             );
+            const transaction = compileTransaction(txMessage);
+            const tx = getBase64EncodedWireTransaction(transaction);
 
             await expect(
-                validator(tx, { signer: address("11111111111111111111111111111111") }),
+                validator(tx, address("11111111111111111111111111111111")),
             ).resolves.not.toThrow();
         });
     });
@@ -265,7 +271,7 @@ describe("PolicyEngine", () => {
 
             const tx = createTestTransaction(programId);
             await expect(
-                validator(tx, { signer: address("11111111111111111111111111111111") }),
+                validator(tx, address("11111111111111111111111111111111")),
             ).resolves.not.toThrow();
         });
 
@@ -284,7 +290,7 @@ describe("PolicyEngine", () => {
 
             const tx = createTestTransaction(programId);
             await expect(
-                validator(tx, { signer: address("11111111111111111111111111111111") }),
+                validator(tx, address("11111111111111111111111111111111")),
             ).resolves.not.toThrow();
         });
     });

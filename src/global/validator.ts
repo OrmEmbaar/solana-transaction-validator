@@ -1,4 +1,4 @@
-import type { GlobalPolicyConfig, GlobalValidationContext, ValidationResult } from "../types.js";
+import type { GlobalPolicyConfig, ValidationContext, ValidationResult } from "../types.js";
 import { validateSignerRole } from "./signer-role.js";
 import { validateTransactionLimits } from "./transaction-limits.js";
 import { validateTransactionVersion } from "./version-validation.js";
@@ -14,12 +14,12 @@ import { validateAddressLookups } from "./address-lookup-validation.js";
  * 4. Transaction limits (default: minInstructions=1)
  *
  * @param config - The global policy configuration
- * @param ctx - The global policy context
+ * @param ctx - The validation context
  * @returns ValidationResult (true if allowed, string with reason if denied)
  */
 export function validateGlobalPolicy(
     config: GlobalPolicyConfig,
-    ctx: GlobalValidationContext,
+    ctx: ValidationContext,
 ): ValidationResult {
     const versionResult = validateTransactionVersion(config.allowedVersions, ctx);
     if (versionResult !== true) return versionResult;

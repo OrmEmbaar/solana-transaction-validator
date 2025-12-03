@@ -12,6 +12,7 @@ const createMockContext = (memoData: string): InstructionValidationContext => {
     return {
         signer: SIGNER,
         transaction: {} as InstructionValidationContext["transaction"],
+        compiledMessage: {} as InstructionValidationContext["compiledMessage"],
         decompiledMessage: {} as InstructionValidationContext["decompiledMessage"],
         instruction: {
             programAddress: MEMO_PROGRAM_ADDRESS,

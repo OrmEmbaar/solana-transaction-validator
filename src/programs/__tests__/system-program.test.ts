@@ -31,6 +31,7 @@ const createMockContext = (instruction: Instruction): InstructionValidationConte
     return {
         signer: SIGNER,
         transaction: {} as InstructionValidationContext["transaction"],
+        compiledMessage: {} as InstructionValidationContext["compiledMessage"],
         decompiledMessage: {} as InstructionValidationContext["decompiledMessage"],
         instruction: instruction as InstructionValidationContext["instruction"],
         instructionIndex: 0,

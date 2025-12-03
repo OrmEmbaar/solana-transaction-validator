@@ -57,10 +57,12 @@ const validator = createTransactionValidator({
 });
 
 // Validate before signing
+// Pass the base64 wire transaction (what remote signers receive)
+const wireTransaction = "AQABAgME..."; // base64-encoded transaction
+const signerAddress = address("YourSignerPublicKey111111111111111111111");
+
 try {
-    await validator(compiledTransaction, {
-        signer: address("YourSignerPublicKey111111111111111111111"),
-    });
+    await validator(wireTransaction, signerAddress);
     // Safe to sign
 } catch (error) {
     if (error instanceof ValidationError) {
@@ -80,8 +82,6 @@ global: {
     signerRole: SignerRole.FeePayerOnly,  // Required: FeePayerOnly | ParticipantOnly | Any
     minInstructions: 1,                    // Default: 1 (prevents empty transactions)
     maxInstructions: 10,
-    maxSignatures: 3,
-    maxAccounts: 64,
     allowedVersions: [0],                  // Default: [0] (v0 only)
     addressLookupTables: false,            // Default: false (deny all ALTs)
 }
@@ -302,15 +302,9 @@ const validator = createTransactionValidator({
         },
     },
 });
-```
 
-Simulation requires `transactionMessage` (base64-encoded wire transaction) in the context:
-
-```typescript
-await validator(compiledTransaction, {
-    signer: address("..."),
-    transactionMessage: base64EncodedTransaction,
-});
+// Validator automatically uses the wire transaction for simulation
+await validator(wireTransaction, signerAddress);
 ```
 
 ## Required Programs
@@ -359,15 +353,106 @@ All types are exported for building custom validators:
 
 ```typescript
 import type {
-    ValidationResult,
-    GlobalValidationContext,
+    TransactionInput,
+    ValidationContext,
     InstructionValidationContext,
+    ValidationResult,
     CustomValidationCallback,
     ProgramValidator,
     GlobalPolicyConfig,
     SimulationConstraints,
 } from "solana-transaction-validator";
 ```
+
+## Development
+
+### Running Tests
+
+**Unit Tests** (`src/__tests__/`):
+
+Fast, isolated tests with no external dependencies. Test individual components and engine logic.
+
+```bash
+# Run all unit tests
+pnpm test
+
+# Watch mode for development
+pnpm test:watch
+```
+
+**Integration Tests** (`test/integration/`):
+
+Comprehensive end-to-end tests that validate real transaction scenarios. Require a local Solana test validator.
+
+1. Start the local test validator in a separate terminal:
+
+```bash
+./scripts/start-test-validator.sh
+```
+
+The script uses `flock` to ensure only one instance runs at a time. The validator will run on `http://localhost:8899`.
+
+2. Run the integration tests:
+
+```bash
+# Run all integration tests
+pnpm test:integration
+
+# Watch mode for development
+pnpm test:integration:watch
+
+# Run everything (unit + integration)
+pnpm test:all
+```
+
+**Note:** Simulation-based integration tests require the validator to be running and will fail with a clear error message if it's not available.
+
+### Test Structure
+
+```
+src/
+└── __tests__/          # Unit tests (fast, mocked)
+    └── engine.test.ts
+
+test/
+├── fixtures/           # Shared test utilities
+│   └── test-helpers.ts
+└── integration/        # Integration tests (require validator)
+    ├── malicious-transactions.test.ts  # Attack scenarios
+    ├── valid-transactions.test.ts      # Happy path
+    └── simulation-attacks.test.ts      # RPC simulation tests
+```
+
+### Test Coverage
+
+**Unit Tests:**
+- Transaction validator engine orchestration
+- Program allowlist enforcement
+- Required programs/instructions validation
+
+**Integration Tests - Malicious Scenarios:**
+- **Unauthorized Program Attacks** - Unknown programs, malicious token programs, BPF loaders
+- **Dangerous Instructions** - System Program attacks (assign, create account, transfer limits)
+- **Token Attacks** - SPL Token authority changes, excessive approvals, account closures
+- **Empty Transactions** - Zero instructions, compute-budget-only transactions
+- **Compute Budget Manipulation** - Excessive CUs, priority fees, heap frames
+- **Signer Role Violations** - FeePayerOnly, ParticipantOnly constraints
+- **Custom Program Discriminators** - Unknown/wrong discriminators
+
+**Integration Tests - Valid Scenarios:**
+- **System Program** - Compliant transfers, account creation, allocations
+- **SPL Token** - Transfers, approvals, burns within limits
+- **Compute Budget** - Standard priority fees and CU settings
+- **Multi-instruction** - Complex transactions with multiple programs
+- **Signer Roles** - Correct fee payer and participant configurations
+- **Custom Programs** - Allowed discriminator patterns
+
+**Integration Tests - Simulation Validation:**
+- **Failed Simulations** - Transactions with invalid accounts
+- **Compute Unit Overruns** - Exceeding maxComputeUnits limits
+- **Account Closure** - Detecting signer account drainage
+- **Successful Simulations** - Valid transactions that execute correctly
+- **Note:** Simulation tests require a running validator and automatically airdrop test funds
 
 ## License
 

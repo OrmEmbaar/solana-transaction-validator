@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { validateTransactionLimits } from "../transaction-limits.js";
-import type { GlobalValidationContext } from "../../types.js";
+import type { ValidationContext } from "../../types.js";
 import {
     address,
     compileTransactionMessage,
@@ -12,8 +12,9 @@ import {
     appendTransactionMessageInstructions,
     type Blockhash,
 } from "@solana/kit";
+import type { Base64EncodedWireTransaction } from "@solana/kit";
 
-const createContext = (numInstructions: number, _numSigners = 1): GlobalValidationContext => {
+const createContext = (numInstructions: number, _numSigners = 1): ValidationContext => {
     const blockhash = {
         blockhash: "5c9TGe5te815W476jY7Z96PE5844626366663444346134646261393166" as Blockhash,
         lastValidBlockHeight: BigInt(0),
@@ -38,7 +39,8 @@ const createContext = (numInstructions: number, _numSigners = 1): GlobalValidati
 
     return {
         signer: payer,
-        transaction: compiled,
+        transaction: "" as Base64EncodedWireTransaction,
+        compiledMessage: compiled,
         decompiledMessage,
     };
 };
@@ -96,50 +98,7 @@ describe("validateTransactionLimits", () => {
         });
     });
 
-    describe("minSignatures", () => {
-        it("should allow transactions meeting minimum", () => {
-            const ctx = createContext(1);
-            const result = validateTransactionLimits({ minSignatures: 1 }, ctx);
-            expect(result).toBe(true);
-        });
 
-        it("should reject transactions below minimum", () => {
-            const ctx = createContext(1);
-            // The context has 1 signer (fee payer), so minSignatures: 2 should fail
-            const result = validateTransactionLimits({ minSignatures: 2 }, ctx);
-            expect(result).toBe("Too few signatures: 1 < 2");
-        });
-    });
-
-    describe("maxSignatures", () => {
-        it("should allow transactions within signature limit", () => {
-            const ctx = createContext(1);
-            const result = validateTransactionLimits({ maxSignatures: 5 }, ctx);
-            expect(result).toBe(true);
-        });
-
-        it("should allow unlimited signatures when not configured", () => {
-            const ctx = createContext(1);
-            const result = validateTransactionLimits({}, ctx);
-            expect(result).toBe(true);
-        });
-    });
-
-    describe("maxAccounts", () => {
-        it("should allow transactions within account limit", () => {
-            const ctx = createContext(1);
-            // Transaction has fee payer + program = 2 accounts
-            const result = validateTransactionLimits({ maxAccounts: 10 }, ctx);
-            expect(result).toBe(true);
-        });
-
-        it("should reject transactions exceeding account limit", () => {
-            const ctx = createContext(1);
-            // Transaction has at least fee payer + program
-            const result = validateTransactionLimits({ maxAccounts: 1 }, ctx);
-            expect(result).toContain("Too many accounts");
-        });
-    });
 
     describe("combined limits", () => {
         it("should enforce all configured limits", () => {
@@ -148,7 +107,6 @@ describe("validateTransactionLimits", () => {
                 {
                     minInstructions: 1,
                     maxInstructions: 10,
-                    maxSignatures: 5,
                 },
                 ctx,
             );
@@ -160,7 +118,6 @@ describe("validateTransactionLimits", () => {
             const result = validateTransactionLimits(
                 {
                     maxInstructions: 5, // This fails
-                    maxSignatures: 1, // Would also fail but not reached
                 },
                 ctx,
             );

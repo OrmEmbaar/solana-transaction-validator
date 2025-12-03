@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { validateTransactionVersion } from "../version-validation.js";
-import type { GlobalValidationContext } from "../../types.js";
+import type { ValidationContext } from "../../types.js";
 import {
     address,
     compileTransactionMessage,
@@ -12,8 +12,9 @@ import {
     appendTransactionMessageInstruction,
     type Blockhash,
 } from "@solana/kit";
+import type { Base64EncodedWireTransaction } from "@solana/kit";
 
-const createV0Context = (): GlobalValidationContext => {
+const createV0Context = (): ValidationContext => {
     const blockhash = {
         blockhash: "5c9TGe5te815W476jY7Z96PE5844626366663444346134646261393166" as Blockhash,
         lastValidBlockHeight: BigInt(0),
@@ -40,12 +41,13 @@ const createV0Context = (): GlobalValidationContext => {
 
     return {
         signer: payer,
-        transaction: compiled,
+        transaction: "" as Base64EncodedWireTransaction,
+        compiledMessage: compiled,
         decompiledMessage,
     };
 };
 
-const createLegacyContext = (): GlobalValidationContext => {
+const createLegacyContext = (): ValidationContext => {
     const blockhash = {
         blockhash: "5c9TGe5te815W476jY7Z96PE5844626366663444346134646261393166" as Blockhash,
         lastValidBlockHeight: BigInt(0),
@@ -72,7 +74,8 @@ const createLegacyContext = (): GlobalValidationContext => {
 
     return {
         signer: payer,
-        transaction: compiled,
+        transaction: "" as Base64EncodedWireTransaction,
+        compiledMessage: compiled,
         decompiledMessage,
     };
 };

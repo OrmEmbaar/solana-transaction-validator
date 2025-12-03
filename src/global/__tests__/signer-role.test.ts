@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { validateSignerRole } from "../signer-role.js";
-import { SignerRole, type GlobalValidationContext } from "../../types.js";
+import { SignerRole, type ValidationContext } from "../../types.js";
 import {
     address,
     compileTransactionMessage,
@@ -12,12 +12,13 @@ import {
     appendTransactionMessageInstruction,
     type Blockhash,
 } from "@solana/kit";
+import type { Base64EncodedWireTransaction } from "@solana/kit";
 
 const createContext = (
     signerAddr: string,
     feePayerAddr: string,
     signerAsAccount = false,
-): GlobalValidationContext => {
+): ValidationContext => {
     const blockhash = {
         blockhash: "5c9TGe5te815W476jY7Z96PE5844626366663444346134646261393166" as Blockhash,
         lastValidBlockHeight: BigInt(0),
@@ -57,7 +58,8 @@ const createContext = (
 
     return {
         signer: address(signerAddr),
-        transaction: compiled,
+        transaction: "" as Base64EncodedWireTransaction,
+        compiledMessage: compiled,
         decompiledMessage,
     };
 };

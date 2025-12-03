@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { validateGlobalPolicy } from "../validator.js";
-import type { GlobalPolicyConfig, GlobalValidationContext } from "../../types.js";
+import type { GlobalPolicyConfig, ValidationContext } from "../../types.js";
 import { SignerRole } from "../../types.js";
 import {
     address,
@@ -14,13 +14,14 @@ import {
     appendTransactionMessageInstruction,
     type Blockhash,
 } from "@solana/kit";
+import type { Base64EncodedWireTransaction } from "@solana/kit";
 
 // Helper to create a test context
 const createTestContext = (
     signerAddr = "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
     feePayerAddr = "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
     numInstructions = 1,
-): GlobalValidationContext => {
+): ValidationContext => {
     const blockhash = {
         blockhash: "5c9TGe5te815W476jY7Z96PE5844626366663444346134646261393166" as Blockhash,
         lastValidBlockHeight: BigInt(0),
@@ -47,7 +48,8 @@ const createTestContext = (
 
     return {
         signer: address(signerAddr),
-        transaction: compiled,
+        transaction: "" as Base64EncodedWireTransaction,
+        compiledMessage: compiled,
         decompiledMessage,
     };
 };
@@ -84,16 +86,6 @@ describe("validateGlobalPolicy", () => {
             expect(result).toContain("Too many instructions");
         });
 
-        it("should allow transaction within signature limit", () => {
-            const config: GlobalPolicyConfig = {
-                signerRole: SignerRole.Any,
-                maxSignatures: 5,
-            };
-            const ctx = createTestContext();
-
-            const result = validateGlobalPolicy(config, ctx);
-            expect(result).toBe(true);
-        });
     });
 
     describe("Signer Role Validation", () => {
@@ -169,9 +161,10 @@ describe("validateGlobalPolicy", () => {
             );
             const compiled = compileTransactionMessage(msg);
             const decompiledMessage = decompileTransactionMessage(compiled);
-            const ctxAsParticipant: GlobalValidationContext = {
+            const ctxAsParticipant: ValidationContext = {
                 signer: address(signerAddr),
-                transaction: compiled,
+                transaction: "" as Base64EncodedWireTransaction,
+        compiledMessage: compiled,
                 decompiledMessage,
             };
 
@@ -196,7 +189,6 @@ describe("validateGlobalPolicy", () => {
             const config: GlobalPolicyConfig = {
                 signerRole: SignerRole.Any,
                 maxInstructions: 10,
-                maxSignatures: 5,
             };
             const ctx = createTestContext(
                 "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
@@ -212,7 +204,6 @@ describe("validateGlobalPolicy", () => {
             const config: GlobalPolicyConfig = {
                 signerRole: SignerRole.Any,
                 maxInstructions: 2, // This will fail
-                maxSignatures: 0, // This would also fail, but shouldn't be reached
             };
             const ctx = createTestContext(
                 "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
@@ -222,7 +213,6 @@ describe("validateGlobalPolicy", () => {
 
             const result = validateGlobalPolicy(config, ctx);
             expect(result).toContain("Too many instructions");
-            expect(result).not.toContain("signatures"); // Should short-circuit
         });
     });
 

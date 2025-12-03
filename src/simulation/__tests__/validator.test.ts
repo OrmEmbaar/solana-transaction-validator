@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { validateSimulation } from "../validator.js";
-import type { GlobalValidationContext } from "../../types.js";
-import type { Rpc, SolanaRpcApi, Address } from "@solana/kit";
+import type { ValidationContext } from "../../types.js";
+import type { Rpc, SolanaRpcApi, Address, Base64EncodedWireTransaction } from "@solana/kit";
 import {
     address,
     compileTransactionMessage,
@@ -27,7 +27,7 @@ function createMockRpc(simulationResponse: any): Rpc<SolanaRpcApi> {
 // Helper to create test context
 function createTestContext(
     signerAddr = "4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T",
-): GlobalValidationContext {
+): ValidationContext {
     const blockhash = {
         blockhash: "5c9TGe5te815W476jY7Z96PE5844626366663444346134646261393166" as Blockhash,
         lastValidBlockHeight: BigInt(0),
@@ -54,10 +54,9 @@ function createTestContext(
 
     return {
         signer: payer,
-        transaction: compiled,
+        transaction: "dGVzdA==" as Base64EncodedWireTransaction, // Mock base64 encoded transaction
+        compiledMessage: compiled,
         decompiledMessage,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        transactionMessage: "dGVzdA==" as any, // Mock base64 encoded transaction
     };
 }
 
@@ -350,13 +349,7 @@ describe("validateSimulation", () => {
             expect(result).toBe(true);
         });
 
-        it("should fail when transactionMessage is missing", async () => {
-            const mockRpc = createMockRpc(MOCK_RESPONSES.success());
-            const ctxWithoutTxMessage = { ...ctx, transactionMessage: undefined };
-
-            const result = await validateSimulation({}, ctxWithoutTxMessage, mockRpc);
-
-            expect(result).toContain("Simulation requires transactionMessage");
-        });
+        // Note: transaction is now a required field in ValidationContext,
+        // so the type system guarantees it will always be present
     });
 });

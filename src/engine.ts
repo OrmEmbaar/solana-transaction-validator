@@ -1,6 +1,13 @@
-import { decompileTransactionMessage } from "@solana/kit";
+import {
+    decompileTransactionMessage,
+    getBase64Encoder,
+    getBase64EncodedWireTransaction,
+    getCompiledTransactionMessageDecoder,
+    getTransactionDecoder,
+} from "@solana/kit";
 import type {
     Address,
+    Base64EncodedWireTransaction,
     CompiledTransactionMessage,
     CompiledTransactionMessageWithLifetime,
     Instruction,
@@ -8,13 +15,13 @@ import type {
     SolanaRpcApi,
 } from "@solana/kit";
 import type {
-    BaseValidationContext,
     GlobalPolicyConfig,
-    GlobalValidationContext,
+    ValidationContext,
     InstructionValidationContext,
     ValidationResult,
     ProgramValidator,
     SimulationConstraints,
+    TransactionInput,
 } from "./types.js";
 import { ValidationError } from "./errors.js";
 import { validateGlobalPolicy } from "./global/validator.js";
@@ -56,10 +63,13 @@ export interface TransactionValidatorConfig {
 /**
  * A function that validates a transaction against the configured policies.
  * Throws ValidationError if validation fails.
+ *
+ * @param transaction - Raw wire transaction (base64 string or bytes)
+ * @param signer - The address of the signer the transaction is being validated for
  */
 export type TransactionValidator = (
-    transaction: CompiledTransactionMessage & CompiledTransactionMessageWithLifetime,
-    baseContext: BaseValidationContext,
+    transaction: TransactionInput,
+    signer: Address,
 ) => Promise<void>;
 
 /**
@@ -95,7 +105,7 @@ export type TransactionValidator = (
  *
  * // Use the validator
  * try {
- *     await validator(compiledTransaction, { signer: mySignerAddress });
+ *     await validator(wireTransaction, signerAddress);
  *     // Safe to sign
  * } catch (error) {
  *     if (error instanceof ValidationError) {
@@ -109,8 +119,8 @@ export function createTransactionValidator(
 ): TransactionValidator {
     const programMap = buildProgramMap(config.programs);
 
-    return async (transaction, baseContext) => {
-        const ctx = buildValidationContext(transaction, baseContext);
+    return async (input, signer) => {
+        const ctx = decodeAndBuildContext(input, signer);
 
         validateGlobal(config.global, ctx);
         validateRequiredPrograms(programMap, ctx.decompiledMessage.instructions);
@@ -119,6 +129,35 @@ export function createTransactionValidator(
         if (config.simulation) {
             await runSimulation(config.simulation, ctx);
         }
+    };
+}
+
+/**
+ * Decodes raw transaction input and builds the validation context.
+ */
+function decodeAndBuildContext(input: TransactionInput, signer: Address): ValidationContext {
+    // Convert to bytes if base64 string
+    const bytes = typeof input === "string" ? getBase64Encoder().encode(input) : input;
+
+    // Decode to Transaction (has messageBytes + signatures)
+    const decodedTx = getTransactionDecoder().decode(bytes);
+
+    // Decode messageBytes to CompiledTransactionMessage
+    const compiledMessage = getCompiledTransactionMessageDecoder().decode(
+        decodedTx.messageBytes,
+    ) as CompiledTransactionMessage & CompiledTransactionMessageWithLifetime;
+
+    // Get wire transaction as base64 for simulation
+    const transaction =
+        typeof input === "string"
+            ? (input as Base64EncodedWireTransaction)
+            : getBase64EncodedWireTransaction(decodedTx);
+
+    return {
+        signer,
+        transaction,
+        compiledMessage,
+        decompiledMessage: decompileTransactionMessage(compiledMessage),
     };
 }
 
@@ -135,18 +174,7 @@ function buildProgramMap(programs: ProgramValidator[]): Map<Address, ProgramVali
     return map;
 }
 
-function buildValidationContext(
-    transaction: CompiledTransactionMessage & CompiledTransactionMessageWithLifetime,
-    baseContext: BaseValidationContext,
-): GlobalValidationContext {
-    return {
-        ...baseContext,
-        transaction,
-        decompiledMessage: decompileTransactionMessage(transaction),
-    };
-}
-
-function validateGlobal(config: GlobalPolicyConfig, ctx: GlobalValidationContext): void {
+function validateGlobal(config: GlobalPolicyConfig, ctx: ValidationContext): void {
     const result = validateGlobalPolicy(config, ctx);
     assertAllowed(result, "Global policy rejected transaction");
 }
@@ -165,7 +193,7 @@ function validateRequiredPrograms(
 
 async function validateInstructions(
     programMap: Map<Address, ProgramValidator>,
-    ctx: GlobalValidationContext,
+    ctx: ValidationContext,
 ): Promise<void> {
     for (const [index, ix] of ctx.decompiledMessage.instructions.entries()) {
         const validator = programMap.get(ix.programAddress);
@@ -190,10 +218,7 @@ async function validateInstructions(
     }
 }
 
-async function runSimulation(
-    config: SimulationConfig,
-    ctx: GlobalValidationContext,
-): Promise<void> {
+async function runSimulation(config: SimulationConfig, ctx: ValidationContext): Promise<void> {
     const result = await validateSimulation(config.constraints, ctx, config.rpc);
     assertAllowed(result, "Simulation validation failed");
 }
