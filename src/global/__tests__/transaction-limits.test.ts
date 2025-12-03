@@ -12,7 +12,6 @@ import {
     appendTransactionMessageInstructions,
     type Blockhash,
 } from "@solana/kit";
-import type { Base64EncodedWireTransaction } from "@solana/kit";
 
 const createContext = (numInstructions: number, _numSigners = 1): ValidationContext => {
     const blockhash = {
@@ -38,8 +37,8 @@ const createContext = (numInstructions: number, _numSigners = 1): ValidationCont
     const decompiledMessage = decompileTransactionMessage(compiled);
 
     return {
+        transaction: {} as ValidationContext["transaction"],
         signer: payer,
-        transaction: "" as Base64EncodedWireTransaction,
         compiledMessage: compiled,
         decompiledMessage,
     };

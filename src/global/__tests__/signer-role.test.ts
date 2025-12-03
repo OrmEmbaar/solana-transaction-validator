@@ -12,7 +12,6 @@ import {
     appendTransactionMessageInstruction,
     type Blockhash,
 } from "@solana/kit";
-import type { Base64EncodedWireTransaction } from "@solana/kit";
 
 const createContext = (
     signerAddr: string,
@@ -58,7 +57,7 @@ const createContext = (
 
     return {
         signer: address(signerAddr),
-        transaction: "" as Base64EncodedWireTransaction,
+        transaction: {} as ValidationContext["transaction"],
         compiledMessage: compiled,
         decompiledMessage,
     };

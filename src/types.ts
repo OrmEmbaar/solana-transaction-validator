@@ -1,11 +1,11 @@
 import type {
     Address,
-    Base64EncodedWireTransaction,
     BaseTransactionMessage,
     CompiledTransactionMessage,
     CompiledTransactionMessageWithLifetime,
     Instruction,
     ReadonlyUint8Array,
+    Transaction,
     TransactionMessageWithFeePayer,
     TransactionMessageWithLifetime,
     TransactionVersion,
@@ -13,9 +13,12 @@ import type {
 
 /**
  * Raw transaction input accepted by the validator.
- * Either a base64-encoded wire transaction string or raw bytes.
+ * Can be:
+ * - Transaction object (most efficient - skip decoding)
+ * - Base64-encoded wire transaction string
+ * - Raw transaction bytes
  */
-export type TransactionInput = string | ReadonlyUint8Array;
+export type TransactionInput = Transaction | string | ReadonlyUint8Array;
 
 /**
  * Context available to all validators.
@@ -25,8 +28,8 @@ export interface ValidationContext {
     /** The public key of the signer being validated */
     signer: Address;
 
-    /** The base64-encoded wire transaction (used for simulation) */
-    transaction: Base64EncodedWireTransaction;
+    /** The transaction object (for signing after validation) */
+    transaction: Transaction;
 
     /** The compiled transaction message (low-level, indexed accounts) */
     compiledMessage: CompiledTransactionMessage & CompiledTransactionMessageWithLifetime;
@@ -210,39 +213,6 @@ export interface AddressLookupConfig {
      * @default undefined (no limit)
      */
     maxIndexedAccounts?: number;
-}
-
-/**
- * Simulation-based constraints that require RPC access.
- * These are validated separately from GlobalPolicyConfig.
- *
- * @example
- * ```typescript
- * const constraints: SimulationConstraints = {
- *     requireSuccess: true,
- *     maxComputeUnits: 200_000,
- *     forbidSignerAccountClosure: true,
- * };
- * ```
- */
-export interface SimulationConstraints {
-    /**
-     * Whether to forbid the signer's account from being closed.
-     * @default false
-     */
-    forbidSignerAccountClosure?: boolean;
-
-    /**
-     * Require simulation to succeed (no errors).
-     * @default true
-     */
-    requireSuccess?: boolean;
-
-    /**
-     * Maximum compute units consumed.
-     * @default undefined (no limit)
-     */
-    maxComputeUnits?: number;
 }
 
 /**

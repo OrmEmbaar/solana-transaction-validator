@@ -14,7 +14,6 @@ import {
     appendTransactionMessageInstruction,
     type Blockhash,
 } from "@solana/kit";
-import type { Base64EncodedWireTransaction } from "@solana/kit";
 
 // Helper to create a test context
 const createTestContext = (
@@ -48,7 +47,7 @@ const createTestContext = (
 
     return {
         signer: address(signerAddr),
-        transaction: "" as Base64EncodedWireTransaction,
+        transaction: {} as ValidationContext["transaction"],
         compiledMessage: compiled,
         decompiledMessage,
     };
@@ -163,7 +162,7 @@ describe("validateGlobalPolicy", () => {
             const decompiledMessage = decompileTransactionMessage(compiled);
             const ctxAsParticipant: ValidationContext = {
                 signer: address(signerAddr),
-                transaction: "" as Base64EncodedWireTransaction,
+        transaction: {} as ValidationContext["transaction"],
         compiledMessage: compiled,
                 decompiledMessage,
             };

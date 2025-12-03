@@ -281,32 +281,6 @@ const myProgramValidator = createCustomProgramValidator({
 - `prefix`: Instruction data must start with the discriminator bytes
 - `exact`: Instruction data must exactly match the discriminator bytes
 
-## Simulation Validation
-
-Enable RPC-based validation for runtime constraints:
-
-```typescript
-import { createSolanaRpc } from "@solana/kit";
-
-const validator = createTransactionValidator({
-    global: { signerRole: SignerRole.Any },
-    programs: [
-        /* ... */
-    ],
-    simulation: {
-        rpc: createSolanaRpc("https://api.mainnet-beta.solana.com"),
-        constraints: {
-            requireSuccess: true, // Simulation must succeed
-            maxComputeUnits: 200_000, // Cap CU consumption
-            forbidSignerAccountClosure: true, // Prevent signer drain attacks
-        },
-    },
-});
-
-// Validator automatically uses the wire transaction for simulation
-await validator(wireTransaction, signerAddress);
-```
-
 ## Required Programs
 
 Mark programs or specific instructions as required:
@@ -360,7 +334,6 @@ import type {
     CustomValidationCallback,
     ProgramValidator,
     GlobalPolicyConfig,
-    SimulationConstraints,
 } from "solana-transaction-validator";
 ```
 
@@ -382,30 +355,17 @@ pnpm test:watch
 
 **Integration Tests** (`test/integration/`):
 
-Comprehensive end-to-end tests that validate real transaction scenarios. Require a local Solana test validator.
-
-1. Start the local test validator in a separate terminal:
-
-```bash
-./scripts/start-test-validator.sh
-```
-
-The script uses `flock` to ensure only one instance runs at a time. The validator will run on `http://localhost:8899`.
-
-2. Run the integration tests:
+Comprehensive end-to-end tests that validate real transaction scenarios against the policy engine.
 
 ```bash
 # Run all integration tests
 pnpm test:integration
 
-# Watch mode for development
-pnpm test:integration:watch
-
 # Run everything (unit + integration)
 pnpm test:all
 ```
 
-**Note:** Simulation-based integration tests require the validator to be running and will fail with a clear error message if it's not available.
+**Note:** All integration tests are policy-based and do not require a running validator.
 
 ### Test Structure
 
@@ -417,10 +377,9 @@ src/
 test/
 ├── fixtures/           # Shared test utilities
 │   └── test-helpers.ts
-└── integration/        # Integration tests (require validator)
+└── integration/        # Integration tests (policy validation)
     ├── malicious-transactions.test.ts  # Attack scenarios
-    ├── valid-transactions.test.ts      # Happy path
-    └── simulation-attacks.test.ts      # RPC simulation tests
+    └── valid-transactions.test.ts      # Happy path
 ```
 
 ### Test Coverage
@@ -449,14 +408,6 @@ test/
 - **Multi-instruction** - Complex transactions with multiple programs
 - **Signer Roles** - Correct fee payer and participant configurations
 - **Custom Programs** - Allowed discriminator patterns
-
-**Integration Tests - Simulation Validation:**
-
-- **Failed Simulations** - Transactions with invalid accounts
-- **Compute Unit Overruns** - Exceeding maxComputeUnits limits
-- **Account Closure** - Detecting signer account drainage
-- **Successful Simulations** - Valid transactions that execute correctly
-- **Note:** Simulation tests require a running validator and automatically airdrop test funds
 
 ## License
 

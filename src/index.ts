@@ -14,7 +14,6 @@ export type {
     InstructionValidator,
     ProgramValidator,
     ProgramPolicyConfig,
-    SimulationConstraints,
 } from "./types.js";
 
 export { SignerRole } from "./types.js";
@@ -32,7 +31,6 @@ export { ValidationError } from "./errors.js";
 export {
     createTransactionValidator,
     type TransactionValidatorConfig,
-    type SimulationConfig,
     type TransactionValidator,
 } from "./engine.js";
 
@@ -145,9 +143,3 @@ export {
     type MemoInstructionConfigs,
     type MemoConfig,
 } from "./programs/memo.js";
-
-// ============================================================================
-// Simulation
-// ============================================================================
-
-export { validateSimulation } from "./simulation/validator.js";

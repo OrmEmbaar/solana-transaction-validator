@@ -1,43 +1,20 @@
 import {
     decompileTransactionMessage,
     getBase64Encoder,
-    getBase64EncodedWireTransaction,
     getCompiledTransactionMessageDecoder,
     getTransactionDecoder,
 } from "@solana/kit";
-import type {
-    Address,
-    Base64EncodedWireTransaction,
-    CompiledTransactionMessage,
-    CompiledTransactionMessageWithLifetime,
-    Instruction,
-    Rpc,
-    SolanaRpcApi,
-} from "@solana/kit";
+import type { Address, Instruction, Transaction } from "@solana/kit";
 import type {
     GlobalPolicyConfig,
     ValidationContext,
     InstructionValidationContext,
     ValidationResult,
     ProgramValidator,
-    SimulationConstraints,
     TransactionInput,
 } from "./types.js";
 import { ValidationError } from "./errors.js";
 import { validateGlobalPolicy } from "./global/validator.js";
-import { validateSimulation } from "./simulation/validator.js";
-
-/**
- * Configuration for simulation-based validation.
- * Bundles RPC client with validation constraints.
- */
-export interface SimulationConfig {
-    /** RPC client for running simulations */
-    rpc: Rpc<SolanaRpcApi>;
-
-    /** Simulation constraints to validate */
-    constraints: SimulationConstraints;
-}
 
 /**
  * Configuration for creating a transaction validator.
@@ -52,12 +29,6 @@ export interface TransactionValidatorConfig {
      * Programs not in this list are denied by default (strict allowlist).
      */
     programs: ProgramValidator[];
-
-    /**
-     * Optional simulation-based validation.
-     * If provided, transactions will be simulated via RPC and validated.
-     */
-    simulation?: SimulationConfig;
 }
 
 /**
@@ -80,7 +51,6 @@ export type TransactionValidator = (
  * 1. Global policy (signer role, limits, versions, ALTs)
  * 2. Required programs check
  * 3. Per-instruction validation against program validators
- * 4. Simulation validation (if configured)
  *
  * @param config - The validator configuration
  * @returns A validation function that throws `ValidationError` on failure
@@ -125,39 +95,39 @@ export function createTransactionValidator(
         validateGlobal(config.global, ctx);
         validateRequiredPrograms(programMap, ctx.decompiledMessage.instructions);
         await validateInstructions(programMap, ctx);
-
-        if (config.simulation) {
-            await runSimulation(config.simulation, ctx);
-        }
     };
+}
+
+/**
+ * Type guard to check if input is already a Transaction object.
+ */
+function isTransaction(input: TransactionInput): input is Transaction {
+    return typeof input === "object" && "messageBytes" in input && "signatures" in input;
 }
 
 /**
  * Decodes raw transaction input and builds the validation context.
  */
 function decodeAndBuildContext(input: TransactionInput, signer: Address): ValidationContext {
-    // Convert to bytes if base64 string
-    const bytes = typeof input === "string" ? getBase64Encoder().encode(input) : input;
+    // Use Transaction directly if provided, otherwise decode from bytes/base64
+    const transaction = isTransaction(input)
+        ? input
+        : getTransactionDecoder().decode(
+              typeof input === "string" ? getBase64Encoder().encode(input) : input,
+          );
 
-    // Decode to Transaction (has messageBytes + signatures)
-    const decodedTx = getTransactionDecoder().decode(bytes);
-
-    // Decode messageBytes to CompiledTransactionMessage
-    const compiledMessage = getCompiledTransactionMessageDecoder().decode(
-        decodedTx.messageBytes,
-    ) as CompiledTransactionMessage & CompiledTransactionMessageWithLifetime;
-
-    // Get wire transaction as base64 for simulation
-    const transaction =
-        typeof input === "string"
-            ? (input as Base64EncodedWireTransaction)
-            : getBase64EncodedWireTransaction(decodedTx);
+    // Decode and decompile the transaction message for validation.
+    // Decompilation converts account/program indices to resolved addresses, simplifying
+    // validation logic throughout (validators work with ix.programAddress and ix.accounts
+    // with resolved addresses instead of manual index lookups like staticAccounts[ix.programAddressIndex]).
+    const compiledMessage = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes);
+    const decompiledMessage = decompileTransactionMessage(compiledMessage);
 
     return {
         signer,
         transaction,
         compiledMessage,
-        decompiledMessage: decompileTransactionMessage(compiledMessage),
+        decompiledMessage,
     };
 }
 
@@ -216,11 +186,6 @@ async function validateInstructions(
             `Validator for program ${ix.programAddress} rejected instruction ${index}`,
         );
     }
-}
-
-async function runSimulation(config: SimulationConfig, ctx: ValidationContext): Promise<void> {
-    const result = await validateSimulation(config.constraints, ctx, config.rpc);
-    assertAllowed(result, "Simulation validation failed");
 }
 
 function buildProgramPresenceMap(

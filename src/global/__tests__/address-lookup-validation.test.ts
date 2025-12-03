@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { validateAddressLookups } from "../address-lookup-validation.js";
 import type { ValidationContext } from "../../types.js";
 import { address, type Address } from "@solana/kit";
-import type { Base64EncodedWireTransaction } from "@solana/kit";
 
 const PAYER = address("4Nd1mBQtrMJVYVfKf2PJy9NZUZdTAsp7D4xWLs4gDB4T");
 const TABLE_1 = address("9YdVSNrDsK91cuGCeN4SoQTyLnFD9nqjJmUvZqFJqNXz");
@@ -27,8 +26,8 @@ const createLegacyContext = (): ValidationContext => {
     const decompiledMessage = {} as ValidationContext["decompiledMessage"];
 
     return {
+        transaction: {} as ValidationContext["transaction"],
         signer: PAYER,
-        transaction: "" as Base64EncodedWireTransaction,
         compiledMessage: compiled,
         decompiledMessage,
     };
@@ -59,8 +58,8 @@ const createV0ContextWithLookups = (
     const decompiledMessage = {} as ValidationContext["decompiledMessage"];
 
     return {
+        transaction: {} as ValidationContext["transaction"],
         signer: PAYER,
-        transaction: "" as Base64EncodedWireTransaction,
         compiledMessage: compiled,
         decompiledMessage,
     };
