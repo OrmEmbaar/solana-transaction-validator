@@ -132,41 +132,42 @@ export function createMemoValidator(config: MemoPolicyConfig): ProgramValidator 
             // Get the instruction config (Memo only has one instruction type)
             const ixConfig = config.instructions[MemoInstruction.Memo];
 
-            // 1. Deny: undefined or false
+            // Deny: undefined or false
             if (ixConfig === undefined || ixConfig === false) {
                 const reason = ixConfig === false ? "explicitly denied" : "not allowed";
                 return `Memo: Memo instruction ${reason}`;
             }
 
-            // 2. Allow all: true
+            // Allow all: true
             if (ixConfig === true) {
                 return runCustomValidator(config.customValidator, typedCtx);
             }
 
-            // 3. Custom validator: function
+            // Validate: function or declarative config
+            let result: ValidationResult;
             if (typeof ixConfig === "function") {
-                const result = await ixConfig(typedCtx);
-                if (result !== true) return result;
-                return runCustomValidator(config.customValidator, typedCtx);
-            }
+                result = await ixConfig(typedCtx);
+            } else {
+                // Declarative config: validate memo constraints
+                const memoData = ix.data;
 
-            // 4. Declarative config: object
-            const memoData = ix.data;
-            const memoConfig = ixConfig;
-
-            // Check max length
-            if (memoConfig.maxLength !== undefined && memoData.length > memoConfig.maxLength) {
-                return `Memo: Memo length ${memoData.length} exceeds limit ${memoConfig.maxLength}`;
-            }
-
-            // Check required prefix
-            if (memoConfig.requiredPrefix !== undefined) {
-                const memoText = new TextDecoder().decode(memoData);
-                if (!memoText.startsWith(memoConfig.requiredPrefix)) {
-                    return `Memo: Memo must start with "${memoConfig.requiredPrefix}"`;
+                // Check max length
+                if (ixConfig.maxLength !== undefined && memoData.length > ixConfig.maxLength) {
+                    result = `Memo: Memo length ${memoData.length} exceeds limit ${ixConfig.maxLength}`;
+                } else if (ixConfig.requiredPrefix !== undefined) {
+                    // Check required prefix
+                    const memoText = new TextDecoder().decode(memoData);
+                    if (!memoText.startsWith(ixConfig.requiredPrefix)) {
+                        result = `Memo: Memo must start with "${ixConfig.requiredPrefix}"`;
+                    } else {
+                        result = true;
+                    }
+                } else {
+                    result = true;
                 }
             }
 
+            if (result !== true) return result;
             return runCustomValidator(config.customValidator, typedCtx);
         },
     };

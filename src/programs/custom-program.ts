@@ -85,16 +85,16 @@ export function createCustomProgramValidator(config: CustomProgramPolicyConfig):
         programAddress: config.programAddress,
         required: config.required,
         async validate(ctx: InstructionValidationContext): Promise<ValidationResult> {
-            // 1. Verify program address matches (defensive check)
+            // Verify program address matches (defensive check)
             if (ctx.instruction.programAddress !== config.programAddress) {
                 return `Custom Program: Program address mismatch - expected ${config.programAddress}, got ${ctx.instruction.programAddress}`;
             }
 
-            // 2. Assert instruction has data
+            // Assert instruction has data
             assertIsInstructionWithData(ctx.instruction);
             const ixData = ctx.instruction.data;
 
-            // 3. Check discriminator allowlist
+            // Check discriminator allowlist
             const matchedRule = config.allowedInstructions.find((rule) => {
                 if (rule.matchMode === "exact") {
                     return arraysEqual(ixData, rule.discriminator);
@@ -112,7 +112,7 @@ export function createCustomProgramValidator(config: CustomProgramPolicyConfig):
                 return `Custom Program: Instruction discriminator 0x${discriminatorPreview}${suffix} not in allowlist for program ${config.programAddress}`;
             }
 
-            // 4. Run custom validator if provided
+            // Run custom validator if provided
             return runCustomValidator(config.customValidator, ctx);
         },
     };

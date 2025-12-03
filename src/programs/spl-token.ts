@@ -233,27 +233,26 @@ export function createSplTokenValidator(config: SplTokenPolicyConfig): ProgramVa
             const ixType = identifyTokenInstruction(ix.data);
             const ixConfig = config.instructions[ixType];
 
-            // 1. Deny: undefined or false
+            // Deny: undefined or false
             if (ixConfig === undefined || ixConfig === false) {
                 const reason = ixConfig === false ? "explicitly denied" : "not allowed";
                 return `SPL Token: ${TokenInstruction[ixType]} instruction ${reason}`;
             }
 
-            // 2. Allow all: true
+            // Allow all: true
             if (ixConfig === true) {
                 return runCustomValidator(config.customValidator, typedCtx);
             }
 
-            // 3. Custom validator: function
+            // Validate: function or declarative config
+            let result: ValidationResult;
             if (typeof ixConfig === "function") {
-                const result = await ixConfig(typedCtx);
-                if (result !== true) return result;
-                return runCustomValidator(config.customValidator, typedCtx);
+                result = await ixConfig(typedCtx);
+            } else {
+                result = validateInstruction(ixType, ixConfig, ix);
             }
 
-            // 4. Declarative config: object
-            const validationResult = validateInstruction(ixType, ixConfig, ix);
-            if (validationResult !== true) return validationResult;
+            if (result !== true) return result;
             return runCustomValidator(config.customValidator, typedCtx);
         },
     };
