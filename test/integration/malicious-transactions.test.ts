@@ -17,7 +17,6 @@ import {
     setTransactionMessageLifetimeUsingBlockhash,
     appendTransactionMessageInstruction,
     setTransactionMessageFeePayer,
-    
     lamports,
     createNoopSigner,
     Blockhash,
@@ -107,8 +106,7 @@ describe("Malicious Transaction Integration Tests", () => {
                         tx,
                     ),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "unauthorized program");
@@ -140,8 +138,7 @@ describe("Malicious Transaction Integration Tests", () => {
                         tx,
                     ),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "unauthorized program");
@@ -175,8 +172,7 @@ describe("Malicious Transaction Integration Tests", () => {
                         tx,
                     ),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "unauthorized program");
@@ -208,8 +204,7 @@ describe("Malicious Transaction Integration Tests", () => {
                         tx,
                     ),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "unauthorized program");
@@ -242,8 +237,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(assignIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "not in allowlist");
@@ -278,8 +272,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(createAccountIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "not in allowlist");
@@ -311,8 +304,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(transferIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "exceeds limit");
@@ -344,8 +336,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(transferIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "not in allowlist");
@@ -374,8 +365,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(allocateIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "not allowed");
@@ -405,8 +395,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(assignIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "explicitly denied");
@@ -441,8 +430,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(createAccountIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "exceeds limit");
@@ -481,8 +469,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(setAuthorityIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "not in allowlist");
@@ -515,8 +502,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(approveIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "exceeds limit");
@@ -549,8 +535,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(approveIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "not in allowlist");
@@ -583,8 +568,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(transferIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "exceeds limit");
@@ -616,8 +600,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(closeAccountIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "not in allowlist");
@@ -650,8 +633,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(mintToIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "exceeds limit");
@@ -679,8 +661,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 createTransactionMessage({ version: 0 }),
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "empty");
@@ -709,8 +690,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(computeBudgetIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "Too few instructions");
@@ -740,8 +720,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(computeBudgetIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "exceeds limit");
@@ -769,8 +748,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(computeBudgetIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "exceeds limit");
@@ -798,8 +776,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(heapIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "exceeds limit");
@@ -829,8 +806,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(loadedAccountsIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "exceeds limit");
@@ -856,8 +832,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(computeBudgetIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "not allowed");
@@ -891,8 +866,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(transferIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "only be fee payer");
@@ -924,8 +898,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(transferIx, tx),
                 (tx) => setTransactionMessageFeePayer(VICTIM_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "must be the fee payer");
@@ -957,8 +930,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(transferIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "cannot be the fee payer");
@@ -990,8 +962,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
                 (tx) => appendTransactionMessageInstruction(transferIx, tx),
                 (tx) => setTransactionMessageFeePayer(VICTIM_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "must be a participant");
@@ -1033,8 +1004,7 @@ describe("Malicious Transaction Integration Tests", () => {
                         tx,
                     ),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "not in allowlist");
@@ -1072,8 +1042,7 @@ describe("Malicious Transaction Integration Tests", () => {
                         tx,
                     ),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "not in allowlist");
@@ -1110,11 +1079,57 @@ describe("Malicious Transaction Integration Tests", () => {
                         tx,
                     ),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
-                
-);
+            );
             const tx = toWireTransaction(txMessage);
 
             await expectValidationError(validator, tx, SIGNER_ADDRESS, "not in allowlist");
+        });
+
+        it("should reject when custom validator denies", async () => {
+            const blockhash = DUMMY_BLOCKHASH;
+            const validator = createTransactionValidator({
+                global: { signerRole: SignerRole.Any },
+                programs: [
+                    createCustomProgramValidator({
+                        programAddress: CUSTOM_PROGRAM,
+                        allowedInstructions: [
+                            {
+                                discriminator: ALLOWED_DISCRIMINATOR,
+                                matchMode: "prefix",
+                            },
+                        ],
+                        customValidator: async (ctx) => {
+                            // Reject if signer is not involved in accounts
+                            const signerInAccounts = ctx.instruction.accounts?.some(
+                                (acc) => acc.address === ctx.signer,
+                            );
+                            if (!signerInAccounts) {
+                                return "Signer must be involved in instruction";
+                            }
+                            return true;
+                        },
+                    }),
+                ],
+            });
+
+            // Transaction with allowed discriminator but signer not in accounts
+            const txMessage = pipe(
+                createTransactionMessage({ version: 0 }),
+                (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
+                (tx) =>
+                    appendTransactionMessageInstruction(
+                        {
+                            programAddress: CUSTOM_PROGRAM,
+                            accounts: [], // Empty accounts - signer not involved
+                            data: ALLOWED_DISCRIMINATOR,
+                        },
+                        tx,
+                    ),
+                (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
+            );
+            const tx = toWireTransaction(txMessage);
+
+            await expectValidationError(validator, tx, SIGNER_ADDRESS, "Signer must be involved");
         });
     });
 });

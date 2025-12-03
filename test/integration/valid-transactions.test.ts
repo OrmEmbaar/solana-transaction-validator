@@ -678,5 +678,48 @@ describe("Valid Transaction Integration Tests", () => {
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
         });
+
+        it("should allow transaction with custom validator callback", async () => {
+            const blockhash = DUMMY_BLOCKHASH;
+            const validator = createTransactionValidator({
+                global: { signerRole: SignerRole.Any },
+                programs: [
+                    createCustomProgramValidator({
+                        programAddress: CUSTOM_PROGRAM,
+                        allowedInstructions: [
+                            {
+                                discriminator: ALLOWED_DISCRIMINATOR,
+                                matchMode: "prefix",
+                            },
+                        ],
+                        customValidator: async (ctx) => {
+                            // Allow if data length is reasonable
+                            if (ctx.instruction.data && ctx.instruction.data.length <= 100) {
+                                return true;
+                            }
+                            return "Data too long";
+                        },
+                    }),
+                ],
+            });
+
+            const txMessage = pipe(
+                createTransactionMessage({ version: 0 }),
+                (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
+                (tx) =>
+                    appendTransactionMessageInstruction(
+                        {
+                            programAddress: CUSTOM_PROGRAM,
+                            accounts: [],
+                            data: new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x50]), // 5 bytes, valid
+                        },
+                        tx,
+                    ),
+                (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
+            );
+            const tx = toWireTransaction(txMessage);
+
+            await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
+        });
     });
 });
