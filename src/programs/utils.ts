@@ -1,12 +1,4 @@
 import type { ReadonlyUint8Array } from "@solana/kit";
-import type {
-    InstructionValidationContext,
-    ValidationResult,
-    CustomValidationCallback,
-} from "../types.js";
-
-// Re-export for convenience
-export type { CustomValidationCallback };
 
 /**
  * Check if two byte arrays are equal.
@@ -40,54 +32,6 @@ export function hasPrefix(data: ReadonlyUint8Array, prefix: ReadonlyUint8Array):
     if (data.length < prefix.length) return false;
     for (let i = 0; i < prefix.length; i++) {
         if (data[i] !== prefix[i]) return false;
-    }
-    return true;
-}
-
-/**
- * Compose two validators into one. Runs both validators in sequence.
- * Returns the first error encountered, or true if both pass.
- *
- * @example
- * ```typescript
- * const checkAmount: CustomValidationCallback = (ctx) => {
- *     // Check amount logic
- *     return true;
- * };
- *
- * const checkDestination: CustomValidationCallback = (ctx) => {
- *     // Check destination logic
- *     return true;
- * };
- *
- * const combined = composeValidators(checkAmount, checkDestination);
- * ```
- */
-export function composeValidators<TProgramAddress extends string = string>(
-    first: CustomValidationCallback<TProgramAddress>,
-    second: CustomValidationCallback<TProgramAddress>,
-): CustomValidationCallback<TProgramAddress> {
-    return async (
-        ctx: InstructionValidationContext<TProgramAddress>,
-    ): Promise<ValidationResult> => {
-        const firstResult = await first(ctx);
-        if (firstResult !== true) return firstResult;
-        return await second(ctx);
-    };
-}
-
-/**
- * Helper to run a custom validator if provided.
- * Returns true if no validator is provided.
- *
- * @internal Used by program validators to run optional custom validators
- */
-export async function runCustomValidator<TProgramAddress extends string = string>(
-    validator: CustomValidationCallback<TProgramAddress> | undefined,
-    ctx: InstructionValidationContext<TProgramAddress>,
-): Promise<ValidationResult> {
-    if (validator) {
-        return await validator(ctx);
     }
     return true;
 }

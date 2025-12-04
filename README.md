@@ -111,13 +111,13 @@ programs: [
 
 Each instruction can be configured in five ways:
 
-| Config                | Behavior                             |
-| --------------------- | ------------------------------------ |
-| `undefined` (omitted) | Denied (implicit)                    |
-| `false`               | Denied (explicit, self-documenting)  |
-| `true`                | Allowed with no constraints          |
-| `{ ...config }`       | Allowed with declarative constraints |
-| `(ctx) => ...`        | Allowed with custom validation       |
+| Config                 | Behavior                               |
+| ---------------------- | -------------------------------------- |
+| `undefined` (omitted)  | Denied (implicit)                      |
+| `false`                | Denied (explicit, self-documenting)    |
+| `true`                 | Allowed with no constraints            |
+| `{ ...config }`        | Allowed with declarative constraints   |
+| `(ctx, parsed) => ...` | Allowed with custom validation (typed) |
 
 ```typescript
 instructions: {
@@ -127,8 +127,10 @@ instructions: {
     },
     [SystemInstruction.AdvanceNonceAccount]: true,
     [SystemInstruction.CreateAccount]: false,
-    [SystemInstruction.Assign]: async (ctx) => {
-        // Custom logic
+    [SystemInstruction.Assign]: async (ctx, parsed) => {
+        // parsed is typed as ParsedAssignInstruction
+        // - parsed.data.programAddress
+        // - parsed.accounts.account.address
         return someCondition ? true : "Denied: reason";
     },
     // Omitted instructions are denied
@@ -267,12 +269,6 @@ const myProgramValidator = createCustomProgramValidator({
             matchMode: "exact",
         },
     ],
-    // Optional: Additional validation after discriminator check
-    customValidator: async (ctx) => {
-        const data = ctx.instruction.data;
-        // Parse and validate instruction data
-        return true;
-    },
 });
 ```
 
@@ -329,85 +325,16 @@ All types are exported for building custom validators:
 import type {
     TransactionInput,
     ValidationContext,
-    InstructionValidationContext,
     ValidationResult,
-    CustomValidationCallback,
+    InstructionCallback,
     ProgramValidator,
     GlobalPolicyConfig,
 } from "solana-transaction-validator";
 ```
 
-## Development
+## Contributing
 
-### Running Tests
-
-**Unit Tests** (`src/__tests__/`):
-
-Fast, isolated tests with no external dependencies. Test individual components and engine logic.
-
-```bash
-# Run all unit tests
-pnpm test
-
-# Watch mode for development
-pnpm test:watch
-```
-
-**Integration Tests** (`test/integration/`):
-
-Comprehensive end-to-end tests that validate real transaction scenarios against the policy engine.
-
-```bash
-# Run all integration tests
-pnpm test:integration
-
-# Run everything (unit + integration)
-pnpm test:all
-```
-
-**Note:** All integration tests are policy-based and do not require a running validator.
-
-### Test Structure
-
-```
-src/
-└── __tests__/          # Unit tests (fast, mocked)
-    └── engine.test.ts
-
-test/
-├── fixtures/           # Shared test utilities
-│   └── test-helpers.ts
-└── integration/        # Integration tests (policy validation)
-    ├── malicious-transactions.test.ts  # Attack scenarios
-    └── valid-transactions.test.ts      # Happy path
-```
-
-### Test Coverage
-
-**Unit Tests:**
-
-- Transaction validator engine orchestration
-- Program allowlist enforcement
-- Required programs/instructions validation
-
-**Integration Tests - Malicious Scenarios:**
-
-- **Unauthorized Program Attacks** - Unknown programs, malicious token programs, BPF loaders
-- **Dangerous Instructions** - System Program attacks (assign, create account, transfer limits)
-- **Token Attacks** - SPL Token authority changes, excessive approvals, account closures
-- **Empty Transactions** - Zero instructions, compute-budget-only transactions
-- **Compute Budget Manipulation** - Excessive CUs, priority fees, heap frames
-- **Signer Role Violations** - FeePayerOnly, ParticipantOnly constraints
-- **Custom Program Discriminators** - Unknown/wrong discriminators
-
-**Integration Tests - Valid Scenarios:**
-
-- **System Program** - Compliant transfers, account creation, allocations
-- **SPL Token** - Transfers, approvals, burns within limits
-- **Compute Budget** - Standard priority fees and CU settings
-- **Multi-instruction** - Complex transactions with multiple programs
-- **Signer Roles** - Correct fee payer and participant configurations
-- **Custom Programs** - Allowed discriminator patterns
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing, and code style guidelines.
 
 ## License
 

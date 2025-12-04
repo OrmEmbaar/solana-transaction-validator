@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createComputeBudgetValidator, ComputeBudgetInstruction } from "../compute-budget.js";
-import type { InstructionValidationContext } from "../../types.js";
-import { address, type Instruction } from "@solana/kit";
+import type { ValidationContext } from "../../types.js";
+import { address } from "@solana/kit";
 import {
     getSetComputeUnitLimitInstruction,
     getSetComputeUnitPriceInstruction,
@@ -12,19 +12,19 @@ import {
 // Valid base58 address
 const SIGNER = address("11111111111111111111111111111112");
 
-// Helper to create a mock instruction context
-const createMockContext = (instruction: Instruction): InstructionValidationContext => {
+// Helper to create a mock validation context (without instruction - that's passed separately)
+const createMockContext = (): ValidationContext => {
     return {
         signer: SIGNER,
-        transaction: {} as InstructionValidationContext["transaction"],
-        compiledMessage: {} as InstructionValidationContext["compiledMessage"],
-        decompiledMessage: {} as InstructionValidationContext["decompiledMessage"],
-        instruction: instruction as InstructionValidationContext["instruction"],
-        instructionIndex: 0,
+        transaction: {} as ValidationContext["transaction"],
+        compiledMessage: {} as ValidationContext["compiledMessage"],
+        decompiledMessage: {} as ValidationContext["decompiledMessage"],
     };
 };
 
 describe("createComputeBudgetValidator", () => {
+    const ctx = createMockContext();
+
     describe("instruction allowlist", () => {
         it("should deny instruction when not in config", async () => {
             const policy = createComputeBudgetValidator({
@@ -32,7 +32,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getSetComputeUnitLimitInstruction({ units: 200_000 });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("SetComputeUnitLimit instruction not allowed");
         });
 
@@ -44,7 +44,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getSetComputeUnitLimitInstruction({ units: 200_000 });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("explicitly denied");
         });
 
@@ -56,7 +56,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getSetComputeUnitLimitInstruction({ units: 200_000 });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -64,7 +64,7 @@ describe("createComputeBudgetValidator", () => {
             let validatorCalled = false;
             const policy = createComputeBudgetValidator({
                 instructions: {
-                    [ComputeBudgetInstruction.SetComputeUnitLimit]: async () => {
+                    [ComputeBudgetInstruction.SetComputeUnitLimit]: async (_ctx, _parsed) => {
                         validatorCalled = true;
                         return true;
                     },
@@ -72,7 +72,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getSetComputeUnitLimitInstruction({ units: 200_000 });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
             expect(validatorCalled).toBe(true);
         });
@@ -89,7 +89,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getSetComputeUnitLimitInstruction({ units: 800_000 });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -103,7 +103,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getSetComputeUnitLimitInstruction({ units: 1_400_000 });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -117,7 +117,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getSetComputeUnitLimitInstruction({ units: 2_000_000 });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("exceeds limit");
             expect(result).toContain("2000000");
         });
@@ -130,7 +130,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getSetComputeUnitLimitInstruction({ units: 5_000_000 });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
     });
@@ -146,7 +146,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getSetComputeUnitPriceInstruction({ microLamports: 500_000n });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -160,7 +160,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getSetComputeUnitPriceInstruction({ microLamports: 1_000_000n });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -174,7 +174,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getSetComputeUnitPriceInstruction({ microLamports: 2_000_000n });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("exceeds limit");
             expect(result).toContain("2000000");
         });
@@ -187,7 +187,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getSetComputeUnitPriceInstruction({ microLamports: 10_000_000n });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
     });
@@ -203,7 +203,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getRequestHeapFrameInstruction({ bytes: 128_000 });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -217,7 +217,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getRequestHeapFrameInstruction({ bytes: 256_000 });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -231,7 +231,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getRequestHeapFrameInstruction({ bytes: 512_000 });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("exceeds limit");
             expect(result).toContain("512000");
         });
@@ -244,7 +244,7 @@ describe("createComputeBudgetValidator", () => {
             });
 
             const ix = getRequestHeapFrameInstruction({ bytes: 1_000_000 });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
     });
@@ -262,7 +262,7 @@ describe("createComputeBudgetValidator", () => {
             const ix = getSetLoadedAccountsDataSizeLimitInstruction({
                 accountDataSizeLimit: 32_768,
             });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -278,62 +278,9 @@ describe("createComputeBudgetValidator", () => {
             const ix = getSetLoadedAccountsDataSizeLimitInstruction({
                 accountDataSizeLimit: 100_000,
             });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("exceeds limit");
             expect(result).toContain("100000");
-        });
-    });
-
-    describe("custom validators", () => {
-        it("should run program-level custom validator", async () => {
-            let customValidatorCalled = false;
-            const policy = createComputeBudgetValidator({
-                instructions: {
-                    [ComputeBudgetInstruction.SetComputeUnitLimit]: {
-                        maxUnits: 1_400_000,
-                    },
-                },
-                customValidator: () => {
-                    customValidatorCalled = true;
-                    return true;
-                },
-            });
-
-            const ix = getSetComputeUnitLimitInstruction({ units: 800_000 });
-            await policy.validate(createMockContext(ix));
-            expect(customValidatorCalled).toBe(true);
-        });
-
-        it("should not run custom validator if validation fails", async () => {
-            let customValidatorCalled = false;
-            const policy = createComputeBudgetValidator({
-                instructions: {
-                    [ComputeBudgetInstruction.SetComputeUnitLimit]: {
-                        maxUnits: 1_400_000,
-                    },
-                },
-                customValidator: () => {
-                    customValidatorCalled = true;
-                    return true;
-                },
-            });
-
-            const ix = getSetComputeUnitLimitInstruction({ units: 2_000_000 });
-            await policy.validate(createMockContext(ix));
-            expect(customValidatorCalled).toBe(false);
-        });
-
-        it("should return custom validator error", async () => {
-            const policy = createComputeBudgetValidator({
-                instructions: {
-                    [ComputeBudgetInstruction.SetComputeUnitLimit]: true,
-                },
-                customValidator: () => "Custom validation failed",
-            });
-
-            const ix = getSetComputeUnitLimitInstruction({ units: 200_000 });
-            const result = await policy.validate(createMockContext(ix));
-            expect(result).toBe("Custom validation failed");
         });
     });
 });

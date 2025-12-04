@@ -39,29 +39,17 @@ Fast, isolated tests with no external dependencies. Test individual components a
 
 ### Integration Tests (`test/integration/`)
 
-Comprehensive end-to-end tests that validate real transaction scenarios against a local Solana test validator.
+Comprehensive end-to-end tests that validate real transaction scenarios against the policy engine.
 
-**Prerequisites**:
+```bash
+# Run integration tests
+pnpm test:integration
 
-1. Start the local test validator in a separate terminal:
+# Run all tests (unit + integration)
+pnpm test:all
+```
 
-    ```bash
-    ./scripts/start-test-validator.sh
-    ```
-
-    The validator runs on `http://localhost:8899`
-
-2. Run integration tests in another terminal:
-
-    ```bash
-    pnpm test:integration
-    ```
-
-3. Stop the validator when done (Ctrl+C in the validator terminal)
-    - The script automatically cleans up the test ledger on exit
-    - Uses `flock` to prevent multiple instances
-
-**Note**: Integration tests gracefully skip if the validator is not running.
+**Note**: All integration tests are policy-based and do not require a running validator.
 
 ### Test Structure
 
@@ -72,8 +60,8 @@ src/
 
 test/
 ├── fixtures/           # Shared test utilities
-│   └── test-helpers.ts # Only truly shared utilities (addresses, expectValidationError, etc.)
-└── integration/        # Integration tests (require validator)
+│   └── test-helpers.ts # Addresses, expectValidationError, toWireTransaction, etc.
+└── integration/        # Integration tests (policy validation)
     ├── malicious-transactions.test.ts  # Attack scenarios
     └── valid-transactions.test.ts      # Happy path scenarios
 ```
@@ -107,23 +95,30 @@ const tx = pipe(
 
 ### Test Coverage
 
-**Malicious Transaction Tests**:
+**Unit Tests:**
 
-- Unauthorized program attacks (unknown programs, fake token programs, BPF loaders)
-- Dangerous instructions on allowed programs (System Program, SPL Token attacks)
-- Empty/minimal transactions
-- Compute budget manipulation
-- Signer role violations
-- Custom program discriminator attacks
+- Transaction validator engine orchestration
+- Program allowlist enforcement
+- Required programs/instructions validation
 
-**Valid Transaction Tests**:
+**Integration Tests - Malicious Scenarios:**
 
-- System Program compliant operations
-- SPL Token transfers, approvals, burns within limits
-- Compute budget standard configurations
-- Multi-instruction transactions
-- Signer role compliance
-- Custom program allowed patterns
+- **Unauthorized Program Attacks** - Unknown programs, malicious token programs, BPF loaders
+- **Dangerous Instructions** - System Program attacks (assign, create account, transfer limits)
+- **Token Attacks** - SPL Token authority changes, excessive approvals, account closures
+- **Empty Transactions** - Zero instructions, compute-budget-only transactions
+- **Compute Budget Manipulation** - Excessive CUs, priority fees, heap frames
+- **Signer Role Violations** - FeePayerOnly, ParticipantOnly constraints
+- **Custom Program Discriminators** - Unknown/wrong discriminators
+
+**Integration Tests - Valid Scenarios:**
+
+- **System Program** - Compliant transfers, account creation, allocations
+- **SPL Token** - Transfers, approvals, burns within limits
+- **Compute Budget** - Standard priority fees and CU settings
+- **Multi-instruction** - Complex transactions with multiple programs
+- **Signer Roles** - Correct fee payer and participant configurations
+- **Custom Programs** - Allowed discriminator patterns
 
 ## Code Style
 

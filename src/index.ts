@@ -5,15 +5,13 @@
 export type {
     TransactionInput,
     ValidationContext,
-    InstructionValidationContext,
     ValidationResult,
-    CustomValidationCallback,
+    InstructionCallback,
     InstructionConfigEntry,
     GlobalPolicyConfig,
     GlobalValidator,
     InstructionValidator,
     ProgramValidator,
-    ProgramPolicyConfig,
 } from "./types.js";
 
 export { SignerRole } from "./types.js";
@@ -56,7 +54,7 @@ export type { TransactionVersion } from "@solana/kit";
 // ============================================================================
 
 // Utilities
-export { arraysEqual, hasPrefix, composeValidators, runCustomValidator } from "./programs/utils.js";
+export { arraysEqual, hasPrefix } from "./programs/utils.js";
 
 // Custom Program (for programs without @solana-program/* packages)
 export {
@@ -71,8 +69,6 @@ export {
     SYSTEM_PROGRAM_ADDRESS,
     SystemInstruction,
     type SystemProgramPolicyConfig,
-    type SystemProgramValidationContext,
-    type SystemInstructionConfigs,
     type TransferSolConfig,
     type CreateAccountConfig,
     type AssignConfig,
@@ -90,8 +86,6 @@ export {
     TOKEN_PROGRAM_ADDRESS,
     TokenInstruction,
     type SplTokenPolicyConfig,
-    type SplTokenValidationContext,
-    type TokenInstructionConfigs,
     type TransferConfig as SplTokenTransferConfig,
     type ApproveConfig as SplTokenApproveConfig,
     type MintToConfig as SplTokenMintToConfig,
@@ -99,7 +93,7 @@ export {
     type SetAuthorityConfig as SplTokenSetAuthorityConfig,
     type CloseAccountConfig as SplTokenCloseAccountConfig,
     type FreezeThawConfig as SplTokenFreezeThawConfig,
-    type RevokeSimpleConfig as SplTokenRevokeConfig,
+    type RevokeConfig as SplTokenRevokeConfig,
 } from "./programs/spl-token.js";
 
 // Token-2022
@@ -108,7 +102,6 @@ export {
     TOKEN_2022_PROGRAM_ADDRESS,
     Token2022Instruction,
     type Token2022PolicyConfig,
-    type Token2022ValidationContext,
     type TransferConfig as Token2022TransferConfig,
     type ApproveConfig as Token2022ApproveConfig,
     type MintToConfig as Token2022MintToConfig,
@@ -116,7 +109,7 @@ export {
     type SetAuthorityConfig as Token2022SetAuthorityConfig,
     type CloseAccountConfig as Token2022CloseAccountConfig,
     type FreezeThawConfig as Token2022FreezeThawConfig,
-    type RevokeSimpleConfig as Token2022RevokeConfig,
+    type RevokeConfig as Token2022RevokeConfig,
 } from "./programs/token-2022.js";
 
 // Compute Budget
@@ -125,8 +118,6 @@ export {
     COMPUTE_BUDGET_PROGRAM_ADDRESS,
     ComputeBudgetInstruction,
     type ComputeBudgetPolicyConfig,
-    type ComputeBudgetValidationContext,
-    type ComputeBudgetInstructionConfigs,
     type SetComputeUnitLimitConfig,
     type SetComputeUnitPriceConfig,
     type RequestHeapFrameConfig,
@@ -139,7 +130,5 @@ export {
     MEMO_PROGRAM_ADDRESS,
     MemoInstruction,
     type MemoPolicyConfig,
-    type MemoValidationContext,
-    type MemoInstructionConfigs,
     type MemoConfig,
 } from "./programs/memo.js";

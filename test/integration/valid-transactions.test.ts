@@ -678,48 +678,224 @@ describe("Valid Transaction Integration Tests", () => {
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
         });
+    });
 
-        it("should allow transaction with custom validator callback", async () => {
+    describe("Instruction-Level Typed Callbacks - Success Cases", () => {
+        it("should allow transfer when callback validates amount", async () => {
             const blockhash = DUMMY_BLOCKHASH;
+            const MAX_TRANSFER = 1_000_000_000n;
+
             const validator = createTransactionValidator({
                 global: { signerRole: SignerRole.Any },
                 programs: [
-                    createCustomProgramValidator({
-                        programAddress: CUSTOM_PROGRAM,
-                        allowedInstructions: [
-                            {
-                                discriminator: ALLOWED_DISCRIMINATOR,
-                                matchMode: "prefix",
-                            },
-                        ],
-                        customValidator: async (ctx) => {
-                            // Allow if data length is reasonable
-                            if (ctx.instruction.data && ctx.instruction.data.length <= 100) {
+                    createSystemProgramValidator({
+                        instructions: {
+                            // Use typed callback that receives ParsedTransferSolInstruction
+                            [SystemInstruction.TransferSol]: async (_ctx, parsed) => {
+                                if (parsed.data.amount > MAX_TRANSFER) {
+                                    return `Amount ${parsed.data.amount} exceeds max ${MAX_TRANSFER}`;
+                                }
+                                // Verify destination is treasury
+                                if (parsed.accounts.destination.address !== TREASURY_ADDRESS) {
+                                    return `Destination must be treasury`;
+                                }
                                 return true;
-                            }
-                            return "Data too long";
+                            },
                         },
                     }),
                 ],
             });
 
+            const transferIx = getTransferSolInstruction({
+                source: createNoopSigner(SIGNER_ADDRESS),
+                destination: TREASURY_ADDRESS,
+                amount: lamports(500_000_000n), // Within limit
+            });
+
             const txMessage = pipe(
                 createTransactionMessage({ version: 0 }),
                 (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
-                (tx) =>
-                    appendTransactionMessageInstruction(
-                        {
-                            programAddress: CUSTOM_PROGRAM,
-                            accounts: [],
-                            data: new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x50]), // 5 bytes, valid
-                        },
-                        tx,
-                    ),
+                (tx) => appendTransactionMessageInstruction(transferIx, tx),
                 (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
             );
             const tx = toWireTransaction(txMessage);
 
             await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
+        });
+
+        it("should allow CreateAccount when callback validates program ownership", async () => {
+            const blockhash = DUMMY_BLOCKHASH;
+            const ALLOWED_PROGRAM = address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+
+            const validator = createTransactionValidator({
+                global: { signerRole: SignerRole.Any },
+                programs: [
+                    createSystemProgramValidator({
+                        instructions: {
+                            // Use typed callback that receives ParsedCreateAccountInstruction
+                            [SystemInstruction.CreateAccount]: async (_ctx, parsed) => {
+                                // Only allow accounts owned by Token program
+                                if (parsed.data.programAddress !== ALLOWED_PROGRAM) {
+                                    return `Can only create accounts owned by Token program`;
+                                }
+                                // Max space limit
+                                if (parsed.data.space > 1000n) {
+                                    return `Space exceeds maximum`;
+                                }
+                                return true;
+                            },
+                        },
+                    }),
+                ],
+            });
+
+            const createIx = getCreateAccountInstruction({
+                payer: createNoopSigner(SIGNER_ADDRESS),
+                newAccount: createNoopSigner(VICTIM_ADDRESS),
+                lamports: lamports(1_000_000n),
+                space: 165n, // Standard token account size
+                programAddress: ALLOWED_PROGRAM,
+            });
+
+            const txMessage = pipe(
+                createTransactionMessage({ version: 0 }),
+                (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
+                (tx) => appendTransactionMessageInstruction(createIx, tx),
+                (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
+            );
+            const tx = toWireTransaction(txMessage);
+
+            await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
+        });
+
+        it("should allow token transfer with business logic callback", async () => {
+            const blockhash = DUMMY_BLOCKHASH;
+            const TOKEN_ACCOUNT = address("BbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbBbB");
+            const DEST_TOKEN_ACCOUNT = address("CcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcC");
+
+            const validator = createTransactionValidator({
+                global: { signerRole: SignerRole.Any },
+                programs: [
+                    createSplTokenValidator({
+                        instructions: {
+                            // Typed callback receives ParsedTransferInstruction
+                            [TokenInstruction.Transfer]: async (_ctx, parsed) => {
+                                // Business logic: max 1M tokens per transfer
+                                if (parsed.data.amount > 1_000_000n) {
+                                    return `Amount exceeds daily limit`;
+                                }
+                                return true;
+                            },
+                        },
+                    }),
+                ],
+            });
+
+            const transferIx = getTransferInstruction({
+                source: TOKEN_ACCOUNT,
+                destination: DEST_TOKEN_ACCOUNT,
+                authority: createNoopSigner(SIGNER_ADDRESS),
+                amount: 500_000n, // Within limit
+            });
+
+            const txMessage = pipe(
+                createTransactionMessage({ version: 0 }),
+                (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
+                (tx) => appendTransactionMessageInstruction(transferIx, tx),
+                (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
+            );
+            const tx = toWireTransaction(txMessage);
+
+            await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
+        });
+
+        it("should allow compute budget with callback validation", async () => {
+            const blockhash = DUMMY_BLOCKHASH;
+
+            const validator = createTransactionValidator({
+                global: { signerRole: SignerRole.Any },
+                programs: [
+                    createSystemProgramValidator({
+                        instructions: {
+                            [SystemInstruction.TransferSol]: true,
+                        },
+                    }),
+                    createComputeBudgetValidator({
+                        instructions: {
+                            // Typed callback receives ParsedSetComputeUnitLimitInstruction
+                            [ComputeBudgetInstruction.SetComputeUnitLimit]: async (
+                                _ctx,
+                                parsed,
+                            ) => {
+                                // Only allow reasonable CU limits
+                                if (parsed.data.units > 1_000_000) {
+                                    return `CU limit too high`;
+                                }
+                                return true;
+                            },
+                            [ComputeBudgetInstruction.SetComputeUnitPrice]: true,
+                        },
+                    }),
+                ],
+            });
+
+            const cuLimitIx = getSetComputeUnitLimitInstruction({ units: 200_000 });
+            const cuPriceIx = getSetComputeUnitPriceInstruction({ microLamports: 1000n });
+            const transferIx = getTransferSolInstruction({
+                source: createNoopSigner(SIGNER_ADDRESS),
+                destination: TREASURY_ADDRESS,
+                amount: lamports(100_000n),
+            });
+
+            const txMessage = pipe(
+                createTransactionMessage({ version: 0 }),
+                (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
+                (tx) => appendTransactionMessageInstruction(cuLimitIx, tx),
+                (tx) => appendTransactionMessageInstruction(cuPriceIx, tx),
+                (tx) => appendTransactionMessageInstruction(transferIx, tx),
+                (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
+            );
+            const tx = toWireTransaction(txMessage);
+
+            await expect(validator(tx, SIGNER_ADDRESS)).resolves.not.toThrow();
+        });
+
+        it("should pass context to instruction callback for cross-instruction logic", async () => {
+            const blockhash = DUMMY_BLOCKHASH;
+
+            let capturedSigner: typeof SIGNER_ADDRESS | undefined;
+
+            const validator = createTransactionValidator({
+                global: { signerRole: SignerRole.Any },
+                programs: [
+                    createSystemProgramValidator({
+                        instructions: {
+                            [SystemInstruction.TransferSol]: async (ctx, _parsed) => {
+                                capturedSigner = ctx.signer;
+                                return true;
+                            },
+                        },
+                    }),
+                ],
+            });
+
+            const transferIx = getTransferSolInstruction({
+                source: createNoopSigner(SIGNER_ADDRESS),
+                destination: TREASURY_ADDRESS,
+                amount: lamports(100_000n),
+            });
+
+            const txMessage = pipe(
+                createTransactionMessage({ version: 0 }),
+                (tx) => setTransactionMessageLifetimeUsingBlockhash(blockhash, tx),
+                (tx) => appendTransactionMessageInstruction(transferIx, tx),
+                (tx) => setTransactionMessageFeePayer(SIGNER_ADDRESS, tx),
+            );
+            const tx = toWireTransaction(txMessage);
+
+            await validator(tx, SIGNER_ADDRESS);
+
+            expect(capturedSigner).toBe(SIGNER_ADDRESS);
         });
     });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createSystemProgramValidator, SystemInstruction } from "../system-program.js";
-import type { InstructionValidationContext } from "../../types.js";
+import type { ValidationContext } from "../../types.js";
 import { address, type Address, type Instruction } from "@solana/kit";
 import {
     getTransferSolInstruction,
@@ -26,15 +26,13 @@ const ANOTHER_NONCE_AUTHORITY = address("1111111111111111111111111111111A");
 const NEW_NONCE_AUTHORITY = address("1111111111111111111111111111111B");
 const ANOTHER_NEW_NONCE_AUTHORITY = address("1111111111111111111111111111111C");
 
-// Helper to create a mock instruction context
-const createMockContext = (instruction: Instruction): InstructionValidationContext => {
+// Helper to create a mock validation context (without instruction - that's passed separately)
+const createMockContext = (): ValidationContext => {
     return {
         signer: SIGNER,
-        transaction: {} as InstructionValidationContext["transaction"],
-        compiledMessage: {} as InstructionValidationContext["compiledMessage"],
-        decompiledMessage: {} as InstructionValidationContext["decompiledMessage"],
-        instruction: instruction as InstructionValidationContext["instruction"],
-        instructionIndex: 0,
+        transaction: {} as ValidationContext["transaction"],
+        compiledMessage: {} as ValidationContext["compiledMessage"],
+        decompiledMessage: {} as ValidationContext["decompiledMessage"],
     };
 };
 
@@ -153,6 +151,8 @@ const createUpgradeNonceInstruction = (nonceAccount: Address = NONCE_ACCOUNT) =>
 };
 
 describe("createSystemProgramValidator", () => {
+    const ctx = createMockContext();
+
     describe("instruction allowlist", () => {
         it("should deny instruction when not in config", async () => {
             const policy = createSystemProgramValidator({
@@ -162,8 +162,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createTransferInstruction(1000n);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("TransferSol instruction not allowed");
         });
 
@@ -175,8 +174,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createTransferInstruction(1000n);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -188,8 +186,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createTransferInstruction(1000n);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
     });
@@ -205,8 +202,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createTransferInstruction(500_000n);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -220,8 +216,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createTransferInstruction(1_000_000n);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -235,8 +230,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createTransferInstruction(1_000_001n);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("exceeds limit");
             expect(result).toContain("1000001");
         });
@@ -251,8 +245,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createTransferInstruction(1000n, DESTINATION);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -266,8 +259,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createTransferInstruction(1000n, ANOTHER_DESTINATION);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("not in allowlist");
         });
 
@@ -283,15 +275,15 @@ describe("createSystemProgramValidator", () => {
 
             // Valid amount, valid destination
             const ix1 = createTransferInstruction(500_000n, DESTINATION);
-            expect(await policy.validate(createMockContext(ix1))).toBe(true);
+            expect(await policy.validate(ctx, ix1)).toBe(true);
 
             // Invalid amount
             const ix2 = createTransferInstruction(2_000_000n, DESTINATION);
-            expect(await policy.validate(createMockContext(ix2))).toContain("exceeds limit");
+            expect(await policy.validate(ctx, ix2)).toContain("exceeds limit");
 
             // Invalid destination
             const ix3 = createTransferInstruction(500_000n, ANOTHER_DESTINATION);
-            expect(await policy.validate(createMockContext(ix3))).toContain("not in allowlist");
+            expect(await policy.validate(ctx, ix3)).toContain("not in allowlist");
         });
     });
 
@@ -307,8 +299,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createCreateAccountInstruction(500_000_000n, 500n);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -322,8 +313,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createCreateAccountInstruction(2_000_000_000n, 100n);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("lamports");
             expect(result).toContain("exceeds limit");
         });
@@ -338,8 +328,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createCreateAccountInstruction(1_000_000n, 2000n);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("space");
             expect(result).toContain("exceeds limit");
         });
@@ -354,8 +343,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createCreateAccountInstruction(1_000_000n, 100n, PROGRAM_OWNER);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -369,8 +357,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createCreateAccountInstruction(1_000_000n, 100n, ANOTHER_OWNER);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("owner program");
             expect(result).toContain("not in allowlist");
         });
@@ -387,8 +374,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createAssignInstruction(PROGRAM_OWNER);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -402,8 +388,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createAssignInstruction(ANOTHER_OWNER);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("owner program");
             expect(result).toContain("not in allowlist");
         });
@@ -420,8 +405,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createAllocateInstruction(500n);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -435,8 +419,7 @@ describe("createSystemProgramValidator", () => {
             });
 
             const ix = createAllocateInstruction(2000n);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("space");
             expect(result).toContain("exceeds limit");
         });
@@ -455,13 +438,11 @@ describe("createSystemProgramValidator", () => {
                 },
             });
 
-            expect(
-                await policy.validate(createMockContext(createWithdrawNonceInstruction(500n))),
-            ).toBe(true);
+            const ix1 = createWithdrawNonceInstruction(500n);
+            expect(await policy.validate(ctx, ix1)).toBe(true);
 
-            const result = await policy.validate(
-                createMockContext(createWithdrawNonceInstruction(2_000n)),
-            );
+            const ix2 = createWithdrawNonceInstruction(2_000n);
+            const result = await policy.validate(ctx, ix2);
             expect(result).toContain("exceeds limit");
         });
 
@@ -477,7 +458,7 @@ describe("createSystemProgramValidator", () => {
             const ix = createWithdrawNonceInstruction(100n, {
                 recipient: ANOTHER_DESTINATION,
             });
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("recipient");
             expect(result).toContain("not in allowlist");
         });
@@ -493,12 +474,11 @@ describe("createSystemProgramValidator", () => {
                 },
             });
 
-            expect(
-                await policy.validate(createMockContext(createAuthorizeNonceInstruction())),
-            ).toBe(true);
+            const ix1 = createAuthorizeNonceInstruction();
+            expect(await policy.validate(ctx, ix1)).toBe(true);
 
             const disallowed = createAuthorizeNonceInstruction(ANOTHER_NEW_NONCE_AUTHORITY);
-            const result = await policy.validate(createMockContext(disallowed));
+            const result = await policy.validate(ctx, disallowed);
             expect(result).toContain("new authority");
             expect(result).toContain("not in allowlist");
         });
@@ -512,13 +492,11 @@ describe("createSystemProgramValidator", () => {
                 },
             });
 
-            expect(await policy.validate(createMockContext(createUpgradeNonceInstruction()))).toBe(
-                true,
-            );
+            const ix1 = createUpgradeNonceInstruction();
+            expect(await policy.validate(ctx, ix1)).toBe(true);
 
-            const result = await policy.validate(
-                createMockContext(createUpgradeNonceInstruction(ANOTHER_NONCE_ACCOUNT)),
-            );
+            const ix2 = createUpgradeNonceInstruction(ANOTHER_NONCE_ACCOUNT);
+            const result = await policy.validate(ctx, ix2);
             expect(result).toContain("nonce account");
             expect(result).toContain("not in allowlist");
         });
@@ -533,73 +511,144 @@ describe("createSystemProgramValidator", () => {
                 },
             });
 
-            expect(await policy.validate(createMockContext(createAdvanceNonceInstruction()))).toBe(
-                true,
-            );
+            const ix1 = createAdvanceNonceInstruction();
+            expect(await policy.validate(ctx, ix1)).toBe(true);
 
-            const result = await policy.validate(
-                createMockContext(
-                    createAdvanceNonceInstruction({ authority: ANOTHER_NONCE_AUTHORITY }),
-                ),
-            );
+            const ix2 = createAdvanceNonceInstruction({ authority: ANOTHER_NONCE_AUTHORITY });
+            const result = await policy.validate(ctx, ix2);
             expect(result).toContain("authority");
             expect(result).toContain("not in allowlist");
         });
     });
 
-    describe("custom validator", () => {
-        it("should run custom validator after built-in validation", async () => {
-            let customValidatorCalled = false;
+    describe("instruction-level typed callbacks", () => {
+        it("should receive correctly typed TransferSol instruction", async () => {
+            let receivedAmount: bigint | undefined;
+            let receivedDestination: Address | undefined;
             const policy = createSystemProgramValidator({
                 instructions: {
-                    [SystemInstruction.TransferSol]: {
-                        maxLamports: 1_000_000n,
+                    [SystemInstruction.TransferSol]: async (_ctx, parsed) => {
+                        receivedAmount = parsed.data.amount;
+                        receivedDestination = parsed.accounts.destination.address;
+                        return true;
                     },
-                },
-                customValidator: () => {
-                    customValidatorCalled = true;
-                    return true;
                 },
             });
 
-            const ix = createTransferInstruction(500_000n);
-            const ctx = createMockContext(ix);
-            await policy.validate(ctx);
-            expect(customValidatorCalled).toBe(true);
+            const ix = createTransferInstruction(1_234_567n, ANOTHER_DESTINATION);
+            await policy.validate(ctx, ix);
+
+            expect(receivedAmount).toBe(1_234_567n);
+            expect(receivedDestination).toBe(ANOTHER_DESTINATION);
         });
 
-        it("should not run custom validator if built-in validation fails", async () => {
-            let customValidatorCalled = false;
+        it("should receive correctly typed CreateAccount instruction", async () => {
+            let receivedLamports: bigint | undefined;
+            let receivedSpace: bigint | undefined;
+            let receivedProgramAddress: Address | undefined;
             const policy = createSystemProgramValidator({
                 instructions: {
-                    [SystemInstruction.TransferSol]: {
-                        maxLamports: 1_000_000n,
+                    [SystemInstruction.CreateAccount]: async (_ctx, parsed) => {
+                        receivedLamports = parsed.data.lamports;
+                        receivedSpace = parsed.data.space;
+                        receivedProgramAddress = parsed.data.programAddress;
+                        return true;
                     },
                 },
-                customValidator: () => {
-                    customValidatorCalled = true;
-                    return true;
+            });
+
+            const ix = createCreateAccountInstruction(5_000_000n, 200n, ANOTHER_OWNER);
+            await policy.validate(ctx, ix);
+
+            expect(receivedLamports).toBe(5_000_000n);
+            expect(receivedSpace).toBe(200n);
+            expect(receivedProgramAddress).toBe(ANOTHER_OWNER);
+        });
+
+        it("should reject based on parsed instruction data", async () => {
+            const policy = createSystemProgramValidator({
+                instructions: {
+                    [SystemInstruction.TransferSol]: async (_ctx, parsed) => {
+                        if (parsed.data.amount > 1_000_000n) {
+                            return `Transfer amount ${parsed.data.amount} exceeds maximum`;
+                        }
+                        return true;
+                    },
                 },
             });
 
             const ix = createTransferInstruction(2_000_000n);
-            const ctx = createMockContext(ix);
-            await policy.validate(ctx);
-            expect(customValidatorCalled).toBe(false);
+            const result = await policy.validate(ctx, ix);
+            expect(result).toContain("Transfer amount 2000000 exceeds maximum");
         });
 
-        it("should return custom validator error", async () => {
+        it("should allow based on parsed instruction data", async () => {
             const policy = createSystemProgramValidator({
                 instructions: {
-                    [SystemInstruction.TransferSol]: true,
+                    [SystemInstruction.TransferSol]: async (_ctx, parsed) => {
+                        // Allow only transfers to specific destination
+                        return parsed.accounts.destination.address === ANOTHER_DESTINATION;
+                    },
                 },
-                customValidator: () => "Custom validation failed",
+            });
+
+            const allowedIx = createTransferInstruction(1000n, ANOTHER_DESTINATION);
+            const deniedIx = createTransferInstruction(1000n, DESTINATION);
+
+            expect(await policy.validate(ctx, allowedIx)).toBe(true);
+            expect(await policy.validate(ctx, deniedIx)).toBe(false);
+        });
+
+        it("should pass validation context to callback", async () => {
+            let receivedSigner: Address | undefined;
+            const policy = createSystemProgramValidator({
+                instructions: {
+                    [SystemInstruction.TransferSol]: async (ctx, _parsed) => {
+                        receivedSigner = ctx.signer;
+                        return true;
+                    },
+                },
             });
 
             const ix = createTransferInstruction(1000n);
-            const ctx = createMockContext(ix);
-            const result = await policy.validate(ctx);
-            expect(result).toBe("Custom validation failed");
+            await policy.validate(ctx, ix);
+
+            expect(receivedSigner).toBe(SIGNER);
+        });
+
+        it("should support async callbacks", async () => {
+            const policy = createSystemProgramValidator({
+                instructions: {
+                    [SystemInstruction.TransferSol]: async (_ctx, _parsed) => {
+                        await new Promise((resolve) => setTimeout(resolve, 10));
+                        return true;
+                    },
+                },
+            });
+
+            const ix = createTransferInstruction(1000n);
+            const result = await policy.validate(ctx, ix);
+            expect(result).toBe(true);
+        });
+
+        it("should receive correctly typed AdvanceNonceAccount instruction", async () => {
+            let receivedNonceAccount: Address | undefined;
+            let receivedNonceAuthority: Address | undefined;
+            const policy = createSystemProgramValidator({
+                instructions: {
+                    [SystemInstruction.AdvanceNonceAccount]: async (_ctx, parsed) => {
+                        receivedNonceAccount = parsed.accounts.nonceAccount.address;
+                        receivedNonceAuthority = parsed.accounts.nonceAuthority.address;
+                        return true;
+                    },
+                },
+            });
+
+            const ix = createAdvanceNonceInstruction();
+            await policy.validate(ctx, ix);
+
+            expect(receivedNonceAccount).toBe(NONCE_ACCOUNT);
+            expect(receivedNonceAuthority).toBe(NONCE_AUTHORITY);
         });
     });
 
@@ -617,9 +666,10 @@ describe("createSystemProgramValidator", () => {
                 accounts: [],
             };
 
-            const ctx = createMockContext(wrongProgramIx as Instruction);
             // The assertion throws a SolanaError when program address doesn't match
-            await expect(policy.validate(ctx)).rejects.toThrow("Expected instruction");
+            await expect(policy.validate(ctx, wrongProgramIx as Instruction)).rejects.toThrow(
+                "Expected instruction",
+            );
         });
     });
 });

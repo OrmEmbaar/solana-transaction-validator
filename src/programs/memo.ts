@@ -6,18 +6,14 @@ import {
 } from "@solana/kit";
 import { MEMO_PROGRAM_ADDRESS } from "@solana-program/memo";
 import type {
-    InstructionValidationContext,
+    ValidationContext,
     ValidationResult,
     ProgramValidator,
-    ProgramPolicyConfig,
+    InstructionCallback,
 } from "../types.js";
-import { runCustomValidator } from "./utils.js";
 
 // Re-export for convenience
 export { MEMO_PROGRAM_ADDRESS };
-
-// Program-specific context type
-export type MemoValidationContext = InstructionValidationContext<typeof MEMO_PROGRAM_ADDRESS>;
 
 // Type for a validated instruction with data
 type ValidatedInstruction = Instruction & InstructionWithData<Uint8Array>;
@@ -36,6 +32,23 @@ export enum MemoInstruction {
 }
 
 // ============================================================================
+// Parsed instruction type
+// ============================================================================
+
+/**
+ * Parsed memo instruction with decoded text.
+ * The memo program's instruction data is just raw UTF-8 bytes.
+ */
+export interface ParsedMemoInstruction {
+    /** The memo text as UTF-8 string */
+    text: string;
+    /** The raw memo bytes */
+    data: Uint8Array;
+    /** The length in bytes */
+    length: number;
+}
+
+// ============================================================================
 // Config types
 // ============================================================================
 
@@ -47,14 +60,18 @@ export interface MemoConfig {
     requiredPrefix?: string;
 }
 
-/** Map instruction types to their config types */
-export interface MemoInstructionConfigs {
-    [MemoInstruction.Memo]: MemoConfig;
-}
+// ============================================================================
+// Typed instruction callback
+// ============================================================================
+
+export type MemoCallback = InstructionCallback<ParsedMemoInstruction>;
 
 // ============================================================================
 // Main config type
 // ============================================================================
+
+/** Config entry for a single instruction: boolean, declarative config, or typed callback */
+type InstructionEntry<TConfig, TCallback> = undefined | boolean | TConfig | TCallback;
 
 /**
  * Configuration for the Memo Program policy.
@@ -64,13 +81,16 @@ export interface MemoInstructionConfigs {
  * - `false`: instruction is explicitly DENIED (self-documenting)
  * - `true`: instruction is ALLOWED with no constraints
  * - Config object: instruction is ALLOWED with declarative constraints
- * - Function: instruction is ALLOWED with custom validation logic
+ * - Function: instruction is ALLOWED with custom validation logic (receives typed parsed instruction)
  */
-export interface MemoPolicyConfig extends ProgramPolicyConfig<
-    typeof MEMO_PROGRAM_ADDRESS,
-    MemoInstruction,
-    MemoInstructionConfigs
-> {
+export interface MemoPolicyConfig {
+    /**
+     * Per-instruction configuration with typed callbacks.
+     */
+    instructions: {
+        [MemoInstruction.Memo]?: InstructionEntry<MemoConfig, MemoCallback>;
+    };
+
     /**
      * Requirements for this program in the transaction.
      * - `true`: Program MUST be present in the transaction.
@@ -86,8 +106,7 @@ export interface MemoPolicyConfig extends ProgramPolicyConfig<
 /**
  * Creates a policy for the Memo Program.
  *
- * The Memo program logs UTF-8 strings in transaction logs and optionally
- * verifies signer accounts.
+ * The Memo program logs UTF-8 strings in transaction logs.
  *
  * @param config - The Memo policy configuration
  * @returns A ProgramValidator that validates Memo instructions
@@ -102,14 +121,17 @@ export interface MemoPolicyConfig extends ProgramPolicyConfig<
  *             requiredPrefix: "app:",
  *         },
  *     },
- *     required: true, // This program must be present in the transaction
+ *     required: true,
  * });
  *
- * // Custom: full control with a function
+ * // Custom: full control with a typed callback
  * const customMemoPolicy = createMemoValidator({
  *     instructions: {
- *         [MemoInstruction.Memo]: async (ctx) => {
- *             // Custom validation logic
+ *         [MemoInstruction.Memo]: async (ctx, instruction) => {
+ *             // instruction is typed as ParsedMemoInstruction
+ *             if (instruction.text.includes("banned")) {
+ *                 return "Memo contains banned word";
+ *             }
  *             return true;
  *         },
  *     },
@@ -120,14 +142,15 @@ export function createMemoValidator(config: MemoPolicyConfig): ProgramValidator 
     return {
         programAddress: MEMO_PROGRAM_ADDRESS,
         required: config.required,
-        async validate(ctx: InstructionValidationContext): Promise<ValidationResult> {
+        async validate(
+            ctx: ValidationContext,
+            instruction: Instruction,
+        ): Promise<ValidationResult> {
             // Assert this is a valid Memo Program instruction with data
-            assertIsInstructionForProgram(ctx.instruction, MEMO_PROGRAM_ADDRESS);
-            assertIsInstructionWithData(ctx.instruction);
+            assertIsInstructionForProgram(instruction, MEMO_PROGRAM_ADDRESS);
+            assertIsInstructionWithData(instruction);
 
-            // After assertions, context is now typed for Memo Program
-            const typedCtx = ctx as MemoValidationContext;
-            const ix = typedCtx.instruction as ValidatedInstruction;
+            const ix = instruction as ValidatedInstruction;
 
             // Get the instruction config (Memo only has one instruction type)
             const ixConfig = config.instructions[MemoInstruction.Memo];
@@ -140,35 +163,50 @@ export function createMemoValidator(config: MemoPolicyConfig): ProgramValidator 
 
             // Allow all: true
             if (ixConfig === true) {
-                return runCustomValidator(config.customValidator, typedCtx);
+                return true;
             }
 
-            // Validate: function or declarative config
-            let result: ValidationResult;
-            if (typeof ixConfig === "function") {
-                result = await ixConfig(typedCtx);
-            } else {
-                // Declarative config: validate memo constraints
-                const memoData = ix.data;
+            // Parse memo data
+            const parsed = parseMemo(ix);
 
-                // Check max length
-                if (ixConfig.maxLength !== undefined && memoData.length > ixConfig.maxLength) {
-                    result = `Memo: Memo length ${memoData.length} exceeds limit ${ixConfig.maxLength}`;
-                } else if (ixConfig.requiredPrefix !== undefined) {
-                    // Check required prefix
-                    const memoText = new TextDecoder().decode(memoData);
-                    if (!memoText.startsWith(ixConfig.requiredPrefix)) {
-                        result = `Memo: Memo must start with "${ixConfig.requiredPrefix}"`;
-                    } else {
-                        result = true;
-                    }
-                } else {
-                    result = true;
-                }
-            }
+            // Get the validator: user-provided callback or our built-in declarative validator
+            const validate =
+                typeof ixConfig === "function" ? ixConfig : createMemoConfigValidator(ixConfig);
 
-            if (result !== true) return result;
-            return runCustomValidator(config.customValidator, typedCtx);
+            // Validate
+            return await validate(ctx, parsed);
         },
+    };
+}
+
+// ============================================================================
+// Parsing
+// ============================================================================
+
+function parseMemo(ix: ValidatedInstruction): ParsedMemoInstruction {
+    return {
+        text: new TextDecoder().decode(ix.data),
+        data: ix.data,
+        length: ix.data.length,
+    };
+}
+
+// ============================================================================
+// Declarative validator
+// ============================================================================
+
+function createMemoConfigValidator(config: MemoConfig): MemoCallback {
+    return (_ctx, parsed) => {
+        if (config.maxLength !== undefined && parsed.length > config.maxLength) {
+            return `Memo: Memo length ${parsed.length} exceeds limit ${config.maxLength}`;
+        }
+
+        if (config.requiredPrefix !== undefined) {
+            if (!parsed.text.startsWith(config.requiredPrefix)) {
+                return `Memo: Memo must start with "${config.requiredPrefix}"`;
+            }
+        }
+
+        return true;
     };
 }

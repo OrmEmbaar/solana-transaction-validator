@@ -27,21 +27,29 @@ import {
     parseRevokeInstruction,
 } from "@solana-program/token-2022";
 import type {
-    InstructionValidationContext,
+    ParsedTransferInstruction,
+    ParsedTransferCheckedInstruction,
+    ParsedApproveInstruction,
+    ParsedApproveCheckedInstruction,
+    ParsedMintToInstruction,
+    ParsedMintToCheckedInstruction,
+    ParsedBurnInstruction,
+    ParsedBurnCheckedInstruction,
+    ParsedSetAuthorityInstruction,
+    ParsedCloseAccountInstruction,
+    ParsedFreezeAccountInstruction,
+    ParsedThawAccountInstruction,
+    ParsedRevokeInstruction,
+} from "@solana-program/token-2022";
+import type {
+    ValidationContext,
     ValidationResult,
     ProgramValidator,
-    CustomValidationCallback,
-    InstructionConfigEntry,
+    InstructionCallback,
 } from "../types.js";
-import { runCustomValidator } from "./utils.js";
 
 // Re-export for convenience
 export { TOKEN_2022_PROGRAM_ADDRESS, Token2022Instruction };
-
-// Program-specific context type
-export type Token2022ValidationContext = InstructionValidationContext<
-    typeof TOKEN_2022_PROGRAM_ADDRESS
->;
 
 // Type for a fully validated instruction
 type ValidatedInstruction = Instruction &
@@ -113,7 +121,7 @@ export interface FreezeThawConfig {
 }
 
 /** Config for Revoke instruction */
-export interface RevokeSimpleConfig {
+export interface RevokeConfig {
     /** Allowlist of token accounts whose delegates can be revoked */
     allowedSources?: Address[];
     /** Allowlist of owners permitted to issue revoke */
@@ -124,20 +132,29 @@ export interface RevokeSimpleConfig {
 export type NoConstraintsConfig = Record<string, never>;
 
 // ============================================================================
+// Typed instruction callbacks
+// ============================================================================
+
+export type TransferCallback = InstructionCallback<ParsedTransferInstruction>;
+export type TransferCheckedCallback = InstructionCallback<ParsedTransferCheckedInstruction>;
+export type ApproveCallback = InstructionCallback<ParsedApproveInstruction>;
+export type ApproveCheckedCallback = InstructionCallback<ParsedApproveCheckedInstruction>;
+export type MintToCallback = InstructionCallback<ParsedMintToInstruction>;
+export type MintToCheckedCallback = InstructionCallback<ParsedMintToCheckedInstruction>;
+export type BurnCallback = InstructionCallback<ParsedBurnInstruction>;
+export type BurnCheckedCallback = InstructionCallback<ParsedBurnCheckedInstruction>;
+export type SetAuthorityCallback = InstructionCallback<ParsedSetAuthorityInstruction>;
+export type CloseAccountCallback = InstructionCallback<ParsedCloseAccountInstruction>;
+export type FreezeAccountCallback = InstructionCallback<ParsedFreezeAccountInstruction>;
+export type ThawAccountCallback = InstructionCallback<ParsedThawAccountInstruction>;
+export type RevokeCallback = InstructionCallback<ParsedRevokeInstruction>;
+
+// ============================================================================
 // Main config type
 // ============================================================================
 
-/** Union of all instruction config types */
-type AnyInstructionConfig =
-    | TransferConfig
-    | ApproveConfig
-    | MintToConfig
-    | BurnConfig
-    | SetAuthorityConfig
-    | CloseAccountConfig
-    | FreezeThawConfig
-    | RevokeSimpleConfig
-    | NoConstraintsConfig;
+/** Config entry for a single instruction: boolean, declarative config, or typed callback */
+type InstructionEntry<TConfig, TCallback> = boolean | TConfig | TCallback;
 
 /**
  * Configuration for the Token-2022 Program policy.
@@ -147,18 +164,51 @@ type AnyInstructionConfig =
  * - `false`: instruction is explicitly DENIED (self-documenting)
  * - `true`: instruction is ALLOWED with no constraints
  * - Config object: instruction is ALLOWED with declarative constraints
- * - Function: instruction is ALLOWED with custom validation logic
+ * - Function: instruction is ALLOWED with custom validation logic (receives typed parsed instruction)
  */
 export interface Token2022PolicyConfig {
-    /** Per-instruction configuration. Keyed by Token2022Instruction enum value. */
-    instructions: Partial<
-        Record<
-            Token2022Instruction,
-            InstructionConfigEntry<typeof TOKEN_2022_PROGRAM_ADDRESS, AnyInstructionConfig>
-        >
-    >;
-    /** Program-level custom validator (runs after instruction-level validation) */
-    customValidator?: CustomValidationCallback<typeof TOKEN_2022_PROGRAM_ADDRESS>;
+    /**
+     * Per-instruction configuration with typed callbacks.
+     */
+    instructions: {
+        [Token2022Instruction.Transfer]?: InstructionEntry<TransferConfig, TransferCallback>;
+        [Token2022Instruction.TransferChecked]?: InstructionEntry<
+            TransferConfig,
+            TransferCheckedCallback
+        >;
+        [Token2022Instruction.Approve]?: InstructionEntry<ApproveConfig, ApproveCallback>;
+        [Token2022Instruction.ApproveChecked]?: InstructionEntry<
+            ApproveConfig,
+            ApproveCheckedCallback
+        >;
+        [Token2022Instruction.MintTo]?: InstructionEntry<MintToConfig, MintToCallback>;
+        [Token2022Instruction.MintToChecked]?: InstructionEntry<
+            MintToConfig,
+            MintToCheckedCallback
+        >;
+        [Token2022Instruction.Burn]?: InstructionEntry<BurnConfig, BurnCallback>;
+        [Token2022Instruction.BurnChecked]?: InstructionEntry<BurnConfig, BurnCheckedCallback>;
+        [Token2022Instruction.SetAuthority]?: InstructionEntry<
+            SetAuthorityConfig,
+            SetAuthorityCallback
+        >;
+        [Token2022Instruction.CloseAccount]?: InstructionEntry<
+            CloseAccountConfig,
+            CloseAccountCallback
+        >;
+        [Token2022Instruction.FreezeAccount]?: InstructionEntry<
+            FreezeThawConfig,
+            FreezeAccountCallback
+        >;
+        [Token2022Instruction.ThawAccount]?: InstructionEntry<
+            FreezeThawConfig,
+            ThawAccountCallback
+        >;
+        [Token2022Instruction.Revoke]?: InstructionEntry<RevokeConfig, RevokeCallback>;
+        // Index signature for all other instruction types (allow/deny only)
+        [key: number]: InstructionEntry<unknown, InstructionCallback<unknown>> | undefined;
+    };
+
     /**
      * Requirements for this program in the transaction.
      * - `true`: Program MUST be present in the transaction.
@@ -190,15 +240,15 @@ export interface Token2022PolicyConfig {
  *             maxAmount: 1_000_000n,
  *             allowedMints: [MY_TOKEN_MINT],
  *         },
- *         // Custom: full control with a function
- *         [Token2022Instruction.Transfer]: async (ctx) => {
- *             // Custom validation logic
+ *         // Custom: full control with a typed callback
+ *         [Token2022Instruction.Transfer]: async (ctx, instruction) => {
+ *             // instruction is fully typed as ParsedTransferInstruction
  *             return true;
  *         },
  *         // Simple allow
  *         [Token2022Instruction.Burn]: true,
  *     },
- *     required: true, // This program must be present in the transaction
+ *     required: true,
  * });
  * ```
  */
@@ -206,15 +256,16 @@ export function createToken2022Validator(config: Token2022PolicyConfig): Program
     return {
         programAddress: TOKEN_2022_PROGRAM_ADDRESS,
         required: config.required,
-        async validate(ctx: InstructionValidationContext): Promise<ValidationResult> {
+        async validate(
+            ctx: ValidationContext,
+            instruction: Instruction,
+        ): Promise<ValidationResult> {
             // Assert this is a valid Token-2022 Program instruction with data and accounts
-            assertIsInstructionForProgram(ctx.instruction, TOKEN_2022_PROGRAM_ADDRESS);
-            assertIsInstructionWithData(ctx.instruction);
-            assertIsInstructionWithAccounts(ctx.instruction);
+            assertIsInstructionForProgram(instruction, TOKEN_2022_PROGRAM_ADDRESS);
+            assertIsInstructionWithData(instruction);
+            assertIsInstructionWithAccounts(instruction);
 
-            // After assertions, context is now typed for Token-2022 Program
-            const typedCtx = ctx as Token2022ValidationContext;
-            const ix = typedCtx.instruction as ValidatedInstruction;
+            const ix = instruction as ValidatedInstruction;
 
             // Identify the instruction type
             const ixType = identifyToken2022Instruction(ix.data);
@@ -228,317 +279,297 @@ export function createToken2022Validator(config: Token2022PolicyConfig): Program
 
             // Allow all: true
             if (ixConfig === true) {
-                return runCustomValidator(config.customValidator, typedCtx);
+                return true;
             }
 
-            // Validate: function or declarative config
-            let result: ValidationResult;
-            if (typeof ixConfig === "function") {
-                result = await ixConfig(typedCtx);
-            } else {
-                result = validateInstruction(ixType, ixConfig, ix);
+            // Look up the handler for this instruction type
+            const handler = instructionHandlers[ixType];
+            if (!handler) {
+                // No handler means this instruction just passes through (like extensions)
+                return true;
             }
 
-            if (result !== true) return result;
-            return runCustomValidator(config.customValidator, typedCtx);
+            // Get the validator: user-provided callback or our built-in declarative validator
+            const validate =
+                typeof ixConfig === "function" ? ixConfig : handler.createValidator(ixConfig);
+
+            // Parse and validate
+            return await validate(ctx, handler.parse(ix));
         },
     };
 }
 
 // ============================================================================
-// Instruction-specific validation
+// Instruction handler registry
 // ============================================================================
 
-type InstructionConfig =
-    | TransferConfig
-    | ApproveConfig
-    | MintToConfig
-    | BurnConfig
-    | SetAuthorityConfig
-    | CloseAccountConfig
-    | FreezeThawConfig
-    | RevokeSimpleConfig
-    | NoConstraintsConfig;
-
-function validateInstruction(
-    ixType: Token2022Instruction,
-    ixConfig: InstructionConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    switch (ixType) {
-        case Token2022Instruction.Transfer:
-            return validateTransfer(ixConfig as TransferConfig, ix);
-
-        case Token2022Instruction.TransferChecked:
-            return validateTransferChecked(ixConfig as TransferConfig, ix);
-
-        case Token2022Instruction.Approve:
-            return validateApprove(ixConfig as ApproveConfig, ix);
-
-        case Token2022Instruction.ApproveChecked:
-            return validateApproveChecked(ixConfig as ApproveConfig, ix);
-
-        case Token2022Instruction.MintTo:
-            return validateMintTo(ixConfig as MintToConfig, ix);
-
-        case Token2022Instruction.MintToChecked:
-            return validateMintToChecked(ixConfig as MintToConfig, ix);
-
-        case Token2022Instruction.Burn:
-            return validateBurn(ixConfig as BurnConfig, ix);
-
-        case Token2022Instruction.BurnChecked:
-            return validateBurnChecked(ixConfig as BurnConfig, ix);
-
-        case Token2022Instruction.SetAuthority:
-            return validateSetAuthority(ixConfig as SetAuthorityConfig, ix);
-
-        case Token2022Instruction.CloseAccount:
-            return validateCloseAccount(ixConfig as CloseAccountConfig, ix);
-
-        case Token2022Instruction.FreezeAccount:
-            return validateFreezeOrThaw(ixConfig as FreezeThawConfig, ix, "FreezeAccount");
-
-        case Token2022Instruction.ThawAccount:
-            return validateFreezeOrThaw(ixConfig as FreezeThawConfig, ix, "ThawAccount");
-
-        case Token2022Instruction.Revoke:
-            return validateRevoke(ixConfig as RevokeSimpleConfig, ix);
-
-        // All other instructions - no additional validation needed
-        default:
-            return true;
-    }
+/**
+ * Handler for a single instruction type.
+ * Pairs the parser with the declarative validator factory.
+ */
+interface InstructionHandler {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    parse: (ix: ValidatedInstruction) => any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    createValidator: (config: any) => InstructionCallback<any>;
 }
 
-function validateTransfer(config: TransferConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseTransferInstruction(ix);
+/**
+ * Registry of all instruction handlers.
+ * Each entry pairs the parser function with the declarative validator factory.
+ */
+const instructionHandlers: Partial<Record<Token2022Instruction, InstructionHandler>> = {
+    [Token2022Instruction.Transfer]: {
+        parse: parseTransferInstruction,
+        createValidator: createTransferValidator,
+    },
+    [Token2022Instruction.TransferChecked]: {
+        parse: parseTransferCheckedInstruction,
+        createValidator: createTransferCheckedValidator,
+    },
+    [Token2022Instruction.Approve]: {
+        parse: parseApproveInstruction,
+        createValidator: createApproveValidator,
+    },
+    [Token2022Instruction.ApproveChecked]: {
+        parse: parseApproveCheckedInstruction,
+        createValidator: createApproveCheckedValidator,
+    },
+    [Token2022Instruction.MintTo]: {
+        parse: parseMintToInstruction,
+        createValidator: createMintToValidator,
+    },
+    [Token2022Instruction.MintToChecked]: {
+        parse: parseMintToCheckedInstruction,
+        createValidator: createMintToCheckedValidator,
+    },
+    [Token2022Instruction.Burn]: {
+        parse: parseBurnInstruction,
+        createValidator: createBurnValidator,
+    },
+    [Token2022Instruction.BurnChecked]: {
+        parse: parseBurnCheckedInstruction,
+        createValidator: createBurnCheckedValidator,
+    },
+    [Token2022Instruction.SetAuthority]: {
+        parse: parseSetAuthorityInstruction,
+        createValidator: createSetAuthorityValidator,
+    },
+    [Token2022Instruction.CloseAccount]: {
+        parse: parseCloseAccountInstruction,
+        createValidator: createCloseAccountValidator,
+    },
+    [Token2022Instruction.FreezeAccount]: {
+        parse: parseFreezeAccountInstruction,
+        createValidator: createFreezeAccountValidator,
+    },
+    [Token2022Instruction.ThawAccount]: {
+        parse: parseThawAccountInstruction,
+        createValidator: createThawAccountValidator,
+    },
+    [Token2022Instruction.Revoke]: {
+        parse: parseRevokeInstruction,
+        createValidator: createRevokeValidator,
+    },
+};
 
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `Token-2022: Transfer amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
+// ============================================================================
+// Declarative validators
+// ============================================================================
 
-    return true;
+function createTransferValidator(config: TransferConfig): TransferCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `Token-2022: Transfer amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
+        }
+        return true;
+    };
 }
 
-function validateTransferChecked(
-    config: TransferConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseTransferCheckedInstruction(ix);
-
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `Token-2022: TransferChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
-
-    if (config.allowedMints !== undefined) {
-        const mint = parsed.accounts.mint.address;
-        if (!config.allowedMints.includes(mint)) {
-            return `Token-2022: TransferChecked mint ${mint} not in allowlist`;
+function createTransferCheckedValidator(config: TransferConfig): TransferCheckedCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `Token-2022: TransferChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
         }
-    }
-
-    return true;
+        if (config.allowedMints !== undefined) {
+            if (!config.allowedMints.includes(parsed.accounts.mint.address)) {
+                return `Token-2022: TransferChecked mint ${parsed.accounts.mint.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }
 
-function validateApprove(config: ApproveConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseApproveInstruction(ix);
-
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `Token-2022: Approve amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
-
-    if (config.allowedDelegates !== undefined) {
-        const delegate = parsed.accounts.delegate.address;
-        if (!config.allowedDelegates.includes(delegate)) {
-            return `Token-2022: Approve delegate ${delegate} not in allowlist`;
+function createApproveValidator(config: ApproveConfig): ApproveCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `Token-2022: Approve amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
         }
-    }
-
-    return true;
+        if (config.allowedDelegates !== undefined) {
+            if (!config.allowedDelegates.includes(parsed.accounts.delegate.address)) {
+                return `Token-2022: Approve delegate ${parsed.accounts.delegate.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }
 
-function validateApproveChecked(config: ApproveConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseApproveCheckedInstruction(ix);
-
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `Token-2022: ApproveChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
-
-    if (config.allowedMints !== undefined) {
-        const mint = parsed.accounts.mint.address;
-        if (!config.allowedMints.includes(mint)) {
-            return `Token-2022: ApproveChecked mint ${mint} not in allowlist`;
+function createApproveCheckedValidator(config: ApproveConfig): ApproveCheckedCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `Token-2022: ApproveChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
         }
-    }
-
-    if (config.allowedDelegates !== undefined) {
-        const delegate = parsed.accounts.delegate.address;
-        if (!config.allowedDelegates.includes(delegate)) {
-            return `Token-2022: ApproveChecked delegate ${delegate} not in allowlist`;
+        if (config.allowedMints !== undefined) {
+            if (!config.allowedMints.includes(parsed.accounts.mint.address)) {
+                return `Token-2022: ApproveChecked mint ${parsed.accounts.mint.address} not in allowlist`;
+            }
         }
-    }
-
-    return true;
+        if (config.allowedDelegates !== undefined) {
+            if (!config.allowedDelegates.includes(parsed.accounts.delegate.address)) {
+                return `Token-2022: ApproveChecked delegate ${parsed.accounts.delegate.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }
 
-function validateMintTo(config: MintToConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseMintToInstruction(ix);
-
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `Token-2022: MintTo amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
-
-    if (config.allowedMints !== undefined) {
-        const mint = parsed.accounts.mint.address;
-        if (!config.allowedMints.includes(mint)) {
-            return `Token-2022: MintTo mint ${mint} not in allowlist`;
+function createMintToValidator(config: MintToConfig): MintToCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `Token-2022: MintTo amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
         }
-    }
-
-    return true;
+        if (config.allowedMints !== undefined) {
+            if (!config.allowedMints.includes(parsed.accounts.mint.address)) {
+                return `Token-2022: MintTo mint ${parsed.accounts.mint.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }
 
-function validateMintToChecked(config: MintToConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseMintToCheckedInstruction(ix);
-
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `Token-2022: MintToChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
-
-    if (config.allowedMints !== undefined) {
-        const mint = parsed.accounts.mint.address;
-        if (!config.allowedMints.includes(mint)) {
-            return `Token-2022: MintToChecked mint ${mint} not in allowlist`;
+function createMintToCheckedValidator(config: MintToConfig): MintToCheckedCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `Token-2022: MintToChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
         }
-    }
-
-    return true;
+        if (config.allowedMints !== undefined) {
+            if (!config.allowedMints.includes(parsed.accounts.mint.address)) {
+                return `Token-2022: MintToChecked mint ${parsed.accounts.mint.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }
 
-function validateBurn(config: BurnConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseBurnInstruction(ix);
-
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `Token-2022: Burn amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
-
-    return true;
+function createBurnValidator(config: BurnConfig): BurnCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `Token-2022: Burn amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
+        }
+        return true;
+    };
 }
 
-function validateBurnChecked(config: BurnConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseBurnCheckedInstruction(ix);
-
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `Token-2022: BurnChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
-
-    if (config.allowedMints !== undefined) {
-        const mint = parsed.accounts.mint.address;
-        if (!config.allowedMints.includes(mint)) {
-            return `Token-2022: BurnChecked mint ${mint} not in allowlist`;
+function createBurnCheckedValidator(config: BurnConfig): BurnCheckedCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `Token-2022: BurnChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
         }
-    }
-
-    return true;
+        if (config.allowedMints !== undefined) {
+            if (!config.allowedMints.includes(parsed.accounts.mint.address)) {
+                return `Token-2022: BurnChecked mint ${parsed.accounts.mint.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }
 
-function validateSetAuthority(
-    config: SetAuthorityConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseSetAuthorityInstruction(ix);
-
-    if (config.allowedAuthorityTypes !== undefined) {
-        const authorityType = parsed.data.authorityType;
-        if (!config.allowedAuthorityTypes.includes(authorityType)) {
-            return `Token-2022: SetAuthority type ${authorityType} not in allowlist`;
+function createSetAuthorityValidator(config: SetAuthorityConfig): SetAuthorityCallback {
+    return (_ctx, parsed) => {
+        if (config.allowedAuthorityTypes !== undefined) {
+            if (!config.allowedAuthorityTypes.includes(parsed.data.authorityType)) {
+                return `Token-2022: SetAuthority type ${parsed.data.authorityType} not in allowlist`;
+            }
         }
-    }
-
-    return true;
+        return true;
+    };
 }
 
-function validateCloseAccount(
-    config: CloseAccountConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseCloseAccountInstruction(ix);
-
-    if (config.allowedAccounts !== undefined) {
-        const account = parsed.accounts.account.address;
-        if (!config.allowedAccounts.includes(account)) {
-            return `Token-2022: CloseAccount account ${account} not in allowlist`;
+function createCloseAccountValidator(config: CloseAccountConfig): CloseAccountCallback {
+    return (_ctx, parsed) => {
+        if (config.allowedAccounts !== undefined) {
+            if (!config.allowedAccounts.includes(parsed.accounts.account.address)) {
+                return `Token-2022: CloseAccount account ${parsed.accounts.account.address} not in allowlist`;
+            }
         }
-    }
-
-    if (config.allowedDestinations !== undefined) {
-        const destination = parsed.accounts.destination.address;
-        if (!config.allowedDestinations.includes(destination)) {
-            return `Token-2022: CloseAccount destination ${destination} not in allowlist`;
+        if (config.allowedDestinations !== undefined) {
+            if (!config.allowedDestinations.includes(parsed.accounts.destination.address)) {
+                return `Token-2022: CloseAccount destination ${parsed.accounts.destination.address} not in allowlist`;
+            }
         }
-    }
-
-    if (config.allowedOwners !== undefined) {
-        const owner = parsed.accounts.owner.address;
-        if (!config.allowedOwners.includes(owner)) {
-            return `Token-2022: CloseAccount owner ${owner} not in allowlist`;
+        if (config.allowedOwners !== undefined) {
+            if (!config.allowedOwners.includes(parsed.accounts.owner.address)) {
+                return `Token-2022: CloseAccount owner ${parsed.accounts.owner.address} not in allowlist`;
+            }
         }
-    }
-
-    return true;
+        return true;
+    };
 }
 
-function validateFreezeOrThaw(
-    config: FreezeThawConfig,
-    ix: ValidatedInstruction,
-    instructionName: "FreezeAccount" | "ThawAccount",
-): ValidationResult {
-    const parsed =
-        instructionName === "FreezeAccount"
-            ? parseFreezeAccountInstruction(ix)
-            : parseThawAccountInstruction(ix);
-
-    if (config.allowedAccounts !== undefined) {
-        const account = parsed.accounts.account.address;
-        if (!config.allowedAccounts.includes(account)) {
-            return `Token-2022: ${instructionName} account ${account} not in allowlist`;
+function createFreezeAccountValidator(config: FreezeThawConfig): FreezeAccountCallback {
+    return (_ctx, parsed) => {
+        if (config.allowedAccounts !== undefined) {
+            if (!config.allowedAccounts.includes(parsed.accounts.account.address)) {
+                return `Token-2022: FreezeAccount account ${parsed.accounts.account.address} not in allowlist`;
+            }
         }
-    }
-
-    if (config.allowedMints !== undefined) {
-        const mint = parsed.accounts.mint.address;
-        if (!config.allowedMints.includes(mint)) {
-            return `Token-2022: ${instructionName} mint ${mint} not in allowlist`;
+        if (config.allowedMints !== undefined) {
+            if (!config.allowedMints.includes(parsed.accounts.mint.address)) {
+                return `Token-2022: FreezeAccount mint ${parsed.accounts.mint.address} not in allowlist`;
+            }
         }
-    }
-
-    if (config.allowedAuthorities !== undefined) {
-        const authority = parsed.accounts.owner.address;
-        if (!config.allowedAuthorities.includes(authority)) {
-            return `Token-2022: ${instructionName} authority ${authority} not in allowlist`;
+        if (config.allowedAuthorities !== undefined) {
+            if (!config.allowedAuthorities.includes(parsed.accounts.owner.address)) {
+                return `Token-2022: FreezeAccount authority ${parsed.accounts.owner.address} not in allowlist`;
+            }
         }
-    }
-
-    return true;
+        return true;
+    };
 }
 
-function validateRevoke(config: RevokeSimpleConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseRevokeInstruction(ix);
-
-    if (config.allowedSources !== undefined) {
-        const source = parsed.accounts.source.address;
-        if (!config.allowedSources.includes(source)) {
-            return `Token-2022: Revoke source ${source} not in allowlist`;
+function createThawAccountValidator(config: FreezeThawConfig): ThawAccountCallback {
+    return (_ctx, parsed) => {
+        if (config.allowedAccounts !== undefined) {
+            if (!config.allowedAccounts.includes(parsed.accounts.account.address)) {
+                return `Token-2022: ThawAccount account ${parsed.accounts.account.address} not in allowlist`;
+            }
         }
-    }
-
-    if (config.allowedOwners !== undefined) {
-        const owner = parsed.accounts.owner.address;
-        if (!config.allowedOwners.includes(owner)) {
-            return `Token-2022: Revoke owner ${owner} not in allowlist`;
+        if (config.allowedMints !== undefined) {
+            if (!config.allowedMints.includes(parsed.accounts.mint.address)) {
+                return `Token-2022: ThawAccount mint ${parsed.accounts.mint.address} not in allowlist`;
+            }
         }
-    }
+        if (config.allowedAuthorities !== undefined) {
+            if (!config.allowedAuthorities.includes(parsed.accounts.owner.address)) {
+                return `Token-2022: ThawAccount authority ${parsed.accounts.owner.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
+}
 
-    return true;
+function createRevokeValidator(config: RevokeConfig): RevokeCallback {
+    return (_ctx, parsed) => {
+        if (config.allowedSources !== undefined) {
+            if (!config.allowedSources.includes(parsed.accounts.source.address)) {
+                return `Token-2022: Revoke source ${parsed.accounts.source.address} not in allowlist`;
+            }
+        }
+        if (config.allowedOwners !== undefined) {
+            if (!config.allowedOwners.includes(parsed.accounts.owner.address)) {
+                return `Token-2022: Revoke owner ${parsed.accounts.owner.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }

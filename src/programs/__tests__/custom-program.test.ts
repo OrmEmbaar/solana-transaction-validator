@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createCustomProgramValidator } from "../custom-program.js";
-import type { InstructionValidationContext } from "../../types.js";
-import { address, type Address } from "@solana/kit";
+import type { ValidationContext } from "../../types.js";
+import { address, type Address, type Instruction } from "@solana/kit";
 
 // Use valid base58 addresses (44 chars for 32 bytes, no 0, O, I, l)
 // System program is 11111111111111111111111111111111 (32 ones)
@@ -9,25 +9,26 @@ const PROGRAM_ADDRESS = address("11111111111111111111111111111112");
 const ANOTHER_PROGRAM = address("11111111111111111111111111111113");
 const SIGNER_ADDRESS = address("11111111111111111111111111111114");
 
-const createMockContext = (
-    programAddress: Address,
-    data: Uint8Array,
-): InstructionValidationContext => {
+const createMockContext = (): ValidationContext => {
     return {
         signer: SIGNER_ADDRESS,
-        transaction: {} as InstructionValidationContext["transaction"],
-        compiledMessage: {} as InstructionValidationContext["compiledMessage"],
-        decompiledMessage: {} as InstructionValidationContext["decompiledMessage"],
-        instruction: {
-            programAddress,
-            data,
-            accounts: [],
-        },
-        instructionIndex: 0,
+        transaction: {} as ValidationContext["transaction"],
+        compiledMessage: {} as ValidationContext["compiledMessage"],
+        decompiledMessage: {} as ValidationContext["decompiledMessage"],
+    };
+};
+
+const createInstruction = (programAddress: Address, data: Uint8Array): Instruction => {
+    return {
+        programAddress,
+        data,
+        accounts: [],
     };
 };
 
 describe("createCustomProgramValidator", () => {
+    const ctx = createMockContext();
+
     describe("discriminator matching", () => {
         it("should allow instruction with exact match", async () => {
             const policy = createCustomProgramValidator({
@@ -37,8 +38,8 @@ describe("createCustomProgramValidator", () => {
                 ],
             });
 
-            const ctx = createMockContext(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4]));
-            const result = await policy.validate(ctx);
+            const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4]));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -50,8 +51,8 @@ describe("createCustomProgramValidator", () => {
                 ],
             });
 
-            const ctx = createMockContext(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5]));
-            const result = await policy.validate(ctx);
+            const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5]));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("not in allowlist");
         });
 
@@ -63,11 +64,8 @@ describe("createCustomProgramValidator", () => {
                 ],
             });
 
-            const ctx = createMockContext(
-                PROGRAM_ADDRESS,
-                new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]),
-            );
-            const result = await policy.validate(ctx);
+            const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -79,8 +77,8 @@ describe("createCustomProgramValidator", () => {
                 ],
             });
 
-            const ctx = createMockContext(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4]));
-            const result = await policy.validate(ctx);
+            const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4]));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -92,8 +90,8 @@ describe("createCustomProgramValidator", () => {
                 ],
             });
 
-            const ctx = createMockContext(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 5, 6, 7]));
-            const result = await policy.validate(ctx);
+            const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 5, 6, 7]));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("not in allowlist");
         });
 
@@ -107,13 +105,13 @@ describe("createCustomProgramValidator", () => {
                 ],
             });
 
-            const ctx1 = createMockContext(PROGRAM_ADDRESS, new Uint8Array([1, 0, 0, 0, 1, 2, 3]));
-            const ctx2 = createMockContext(PROGRAM_ADDRESS, new Uint8Array([2, 0, 0, 0, 4, 5, 6]));
-            const ctx3 = createMockContext(PROGRAM_ADDRESS, new Uint8Array([3, 0, 0, 0, 7, 8, 9]));
+            const ix1 = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 0, 0, 0, 1, 2, 3]));
+            const ix2 = createInstruction(PROGRAM_ADDRESS, new Uint8Array([2, 0, 0, 0, 4, 5, 6]));
+            const ix3 = createInstruction(PROGRAM_ADDRESS, new Uint8Array([3, 0, 0, 0, 7, 8, 9]));
 
-            expect(await policy.validate(ctx1)).toBe(true);
-            expect(await policy.validate(ctx2)).toBe(true);
-            expect(await policy.validate(ctx3)).toBe(true);
+            expect(await policy.validate(ctx, ix1)).toBe(true);
+            expect(await policy.validate(ctx, ix2)).toBe(true);
+            expect(await policy.validate(ctx, ix3)).toBe(true);
         });
 
         it("should reject instruction not matching any rule", async () => {
@@ -125,8 +123,8 @@ describe("createCustomProgramValidator", () => {
                 ],
             });
 
-            const ctx = createMockContext(PROGRAM_ADDRESS, new Uint8Array([3, 0, 0, 0, 1, 2, 3]));
-            const result = await policy.validate(ctx);
+            const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([3, 0, 0, 0, 1, 2, 3]));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("not in allowlist");
         });
 
@@ -140,16 +138,16 @@ describe("createCustomProgramValidator", () => {
             });
 
             // Exact match
-            const ctx1 = createMockContext(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4]));
-            expect(await policy.validate(ctx1)).toBe(true);
+            const ix1 = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4]));
+            expect(await policy.validate(ctx, ix1)).toBe(true);
 
             // Prefix match
-            const ctx2 = createMockContext(PROGRAM_ADDRESS, new Uint8Array([5, 6, 7, 8, 9]));
-            expect(await policy.validate(ctx2)).toBe(true);
+            const ix2 = createInstruction(PROGRAM_ADDRESS, new Uint8Array([5, 6, 7, 8, 9]));
+            expect(await policy.validate(ctx, ix2)).toBe(true);
 
             // Neither
-            const ctx3 = createMockContext(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5]));
-            expect(await policy.validate(ctx3)).toContain("not in allowlist");
+            const ix3 = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5]));
+            expect(await policy.validate(ctx, ix3)).toContain("not in allowlist");
         });
     });
 
@@ -162,96 +160,9 @@ describe("createCustomProgramValidator", () => {
                 ],
             });
 
-            const ctx = createMockContext(ANOTHER_PROGRAM, new Uint8Array([1, 2, 3, 4]));
-            const result = await policy.validate(ctx);
+            const ix = createInstruction(ANOTHER_PROGRAM, new Uint8Array([1, 2, 3, 4]));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("Program address mismatch");
-        });
-    });
-
-    describe("custom validator", () => {
-        it("should run custom validator after discriminator check passes", async () => {
-            let validatorCalled = false;
-            const policy = createCustomProgramValidator({
-                programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [
-                    { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
-                ],
-                customValidator: () => {
-                    validatorCalled = true;
-                    return true;
-                },
-            });
-
-            const ctx = createMockContext(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5, 6]));
-            await policy.validate(ctx);
-            expect(validatorCalled).toBe(true);
-        });
-
-        it("should not run custom validator if discriminator check fails", async () => {
-            let validatorCalled = false;
-            const policy = createCustomProgramValidator({
-                programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [
-                    { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
-                ],
-                customValidator: () => {
-                    validatorCalled = true;
-                    return true;
-                },
-            });
-
-            const ctx = createMockContext(PROGRAM_ADDRESS, new Uint8Array([9, 9, 9, 9]));
-            await policy.validate(ctx);
-            expect(validatorCalled).toBe(false);
-        });
-
-        it("should return custom validator error", async () => {
-            const policy = createCustomProgramValidator({
-                programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [
-                    { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
-                ],
-                customValidator: () => "Custom validation failed: amount too high",
-            });
-
-            const ctx = createMockContext(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5, 6]));
-            const result = await policy.validate(ctx);
-            expect(result).toBe("Custom validation failed: amount too high");
-        });
-
-        it("should handle async custom validator", async () => {
-            const policy = createCustomProgramValidator({
-                programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [
-                    { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
-                ],
-                customValidator: async () => {
-                    await new Promise((resolve) => setTimeout(resolve, 10));
-                    return "Async validation failed";
-                },
-            });
-
-            const ctx = createMockContext(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5, 6]));
-            const result = await policy.validate(ctx);
-            expect(result).toBe("Async validation failed");
-        });
-
-        it("should pass context to custom validator", async () => {
-            let receivedCtx: InstructionValidationContext | null = null;
-            const policy = createCustomProgramValidator({
-                programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [
-                    { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
-                ],
-                customValidator: (ctx) => {
-                    receivedCtx = ctx;
-                    return true;
-                },
-            });
-
-            const ctx = createMockContext(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5, 6]));
-            await policy.validate(ctx);
-            expect(receivedCtx).toBe(ctx);
         });
     });
 
@@ -262,11 +173,8 @@ describe("createCustomProgramValidator", () => {
                 allowedInstructions: [],
             });
 
-            const ctx = createMockContext(
-                PROGRAM_ADDRESS,
-                new Uint8Array([0xab, 0xcd, 0xef, 0x12]),
-            );
-            const result = await policy.validate(ctx);
+            const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([0xab, 0xcd, 0xef, 0x12]));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("0xabcdef12");
         });
 
@@ -276,11 +184,11 @@ describe("createCustomProgramValidator", () => {
                 allowedInstructions: [],
             });
 
-            const ctx = createMockContext(
+            const ix = createInstruction(
                 PROGRAM_ADDRESS,
                 new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
             );
-            const result = await policy.validate(ctx);
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("...");
         });
     });

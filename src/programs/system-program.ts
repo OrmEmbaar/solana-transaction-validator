@@ -27,20 +27,29 @@ import {
     parseUpgradeNonceAccountInstruction,
 } from "@solana-program/system";
 import type {
-    InstructionValidationContext,
+    ParsedTransferSolInstruction,
+    ParsedCreateAccountInstruction,
+    ParsedAssignInstruction,
+    ParsedAllocateInstruction,
+    ParsedCreateAccountWithSeedInstruction,
+    ParsedAllocateWithSeedInstruction,
+    ParsedAssignWithSeedInstruction,
+    ParsedTransferSolWithSeedInstruction,
+    ParsedWithdrawNonceAccountInstruction,
+    ParsedAuthorizeNonceAccountInstruction,
+    ParsedInitializeNonceAccountInstruction,
+    ParsedAdvanceNonceAccountInstruction,
+    ParsedUpgradeNonceAccountInstruction,
+} from "@solana-program/system";
+import type {
+    ValidationContext,
     ValidationResult,
     ProgramValidator,
-    ProgramPolicyConfig,
+    InstructionCallback,
 } from "../types.js";
-import { runCustomValidator } from "./utils.js";
 
 // Re-export for convenience
 export { SYSTEM_PROGRAM_ADDRESS, SystemInstruction };
-
-// Program-specific context type
-export type SystemProgramValidationContext = InstructionValidationContext<
-    typeof SYSTEM_PROGRAM_ADDRESS
->;
 
 // Type for a fully validated instruction
 type ValidatedInstruction = Instruction &
@@ -124,27 +133,59 @@ export type UpgradeNonceAccountConfig = NonceAccountConfig;
 /** Empty config for instructions with no additional constraints */
 export type NoConstraintsConfig = Record<string, never>;
 
-/** Map instruction types to their config types */
-export interface SystemInstructionConfigs {
-    [SystemInstruction.TransferSol]: TransferSolConfig;
-    [SystemInstruction.TransferSolWithSeed]: TransferSolConfig;
-    [SystemInstruction.CreateAccount]: CreateAccountConfig;
-    [SystemInstruction.CreateAccountWithSeed]: CreateAccountConfig;
-    [SystemInstruction.Assign]: AssignConfig;
-    [SystemInstruction.AssignWithSeed]: AssignConfig;
-    [SystemInstruction.Allocate]: AllocateConfig;
-    [SystemInstruction.AllocateWithSeed]: AllocateConfig;
-    // Nonce operations
-    [SystemInstruction.AdvanceNonceAccount]: AdvanceNonceAccountConfig;
-    [SystemInstruction.WithdrawNonceAccount]: WithdrawNonceAccountConfig;
-    [SystemInstruction.InitializeNonceAccount]: InitializeNonceAccountConfig;
-    [SystemInstruction.AuthorizeNonceAccount]: AuthorizeNonceAccountConfig;
-    [SystemInstruction.UpgradeNonceAccount]: UpgradeNonceAccountConfig;
-}
+// ============================================================================
+// Typed instruction callbacks
+// ============================================================================
+
+/** Callback for TransferSol instruction with typed parsed instruction */
+export type TransferSolCallback = InstructionCallback<ParsedTransferSolInstruction>;
+
+/** Callback for TransferSolWithSeed instruction with typed parsed instruction */
+export type TransferSolWithSeedCallback = InstructionCallback<ParsedTransferSolWithSeedInstruction>;
+
+/** Callback for CreateAccount instruction with typed parsed instruction */
+export type CreateAccountCallback = InstructionCallback<ParsedCreateAccountInstruction>;
+
+/** Callback for CreateAccountWithSeed instruction with typed parsed instruction */
+export type CreateAccountWithSeedCallback =
+    InstructionCallback<ParsedCreateAccountWithSeedInstruction>;
+
+/** Callback for Assign instruction with typed parsed instruction */
+export type AssignCallback = InstructionCallback<ParsedAssignInstruction>;
+
+/** Callback for AssignWithSeed instruction with typed parsed instruction */
+export type AssignWithSeedCallback = InstructionCallback<ParsedAssignWithSeedInstruction>;
+
+/** Callback for Allocate instruction with typed parsed instruction */
+export type AllocateCallback = InstructionCallback<ParsedAllocateInstruction>;
+
+/** Callback for AllocateWithSeed instruction with typed parsed instruction */
+export type AllocateWithSeedCallback = InstructionCallback<ParsedAllocateWithSeedInstruction>;
+
+/** Callback for AdvanceNonceAccount instruction with typed parsed instruction */
+export type AdvanceNonceAccountCallback = InstructionCallback<ParsedAdvanceNonceAccountInstruction>;
+
+/** Callback for WithdrawNonceAccount instruction with typed parsed instruction */
+export type WithdrawNonceAccountCallback =
+    InstructionCallback<ParsedWithdrawNonceAccountInstruction>;
+
+/** Callback for InitializeNonceAccount instruction with typed parsed instruction */
+export type InitializeNonceAccountCallback =
+    InstructionCallback<ParsedInitializeNonceAccountInstruction>;
+
+/** Callback for AuthorizeNonceAccount instruction with typed parsed instruction */
+export type AuthorizeNonceAccountCallback =
+    InstructionCallback<ParsedAuthorizeNonceAccountInstruction>;
+
+/** Callback for UpgradeNonceAccount instruction with typed parsed instruction */
+export type UpgradeNonceAccountCallback = InstructionCallback<ParsedUpgradeNonceAccountInstruction>;
 
 // ============================================================================
 // Main config type
 // ============================================================================
+
+/** Config entry for a single instruction: boolean, declarative config, or typed callback */
+type InstructionEntry<TConfig, TCallback> = undefined | boolean | TConfig | TCallback;
 
 /**
  * Configuration for the System Program policy.
@@ -154,13 +195,55 @@ export interface SystemInstructionConfigs {
  * - `false`: instruction is explicitly DENIED (self-documenting)
  * - `true`: instruction is ALLOWED with no constraints
  * - Config object: instruction is ALLOWED with declarative constraints
- * - Function: instruction is ALLOWED with custom validation logic
+ * - Function: instruction is ALLOWED with custom validation logic (receives typed parsed instruction)
  */
-export interface SystemProgramPolicyConfig extends ProgramPolicyConfig<
-    typeof SYSTEM_PROGRAM_ADDRESS,
-    SystemInstruction,
-    SystemInstructionConfigs
-> {
+export interface SystemProgramPolicyConfig {
+    /**
+     * Per-instruction configuration with typed callbacks.
+     */
+    instructions: {
+        [SystemInstruction.TransferSol]?: InstructionEntry<TransferSolConfig, TransferSolCallback>;
+        [SystemInstruction.TransferSolWithSeed]?: InstructionEntry<
+            TransferSolConfig,
+            TransferSolWithSeedCallback
+        >;
+        [SystemInstruction.CreateAccount]?: InstructionEntry<
+            CreateAccountConfig,
+            CreateAccountCallback
+        >;
+        [SystemInstruction.CreateAccountWithSeed]?: InstructionEntry<
+            CreateAccountConfig,
+            CreateAccountWithSeedCallback
+        >;
+        [SystemInstruction.Assign]?: InstructionEntry<AssignConfig, AssignCallback>;
+        [SystemInstruction.AssignWithSeed]?: InstructionEntry<AssignConfig, AssignWithSeedCallback>;
+        [SystemInstruction.Allocate]?: InstructionEntry<AllocateConfig, AllocateCallback>;
+        [SystemInstruction.AllocateWithSeed]?: InstructionEntry<
+            AllocateConfig,
+            AllocateWithSeedCallback
+        >;
+        [SystemInstruction.AdvanceNonceAccount]?: InstructionEntry<
+            AdvanceNonceAccountConfig,
+            AdvanceNonceAccountCallback
+        >;
+        [SystemInstruction.WithdrawNonceAccount]?: InstructionEntry<
+            WithdrawNonceAccountConfig,
+            WithdrawNonceAccountCallback
+        >;
+        [SystemInstruction.InitializeNonceAccount]?: InstructionEntry<
+            InitializeNonceAccountConfig,
+            InitializeNonceAccountCallback
+        >;
+        [SystemInstruction.AuthorizeNonceAccount]?: InstructionEntry<
+            AuthorizeNonceAccountConfig,
+            AuthorizeNonceAccountCallback
+        >;
+        [SystemInstruction.UpgradeNonceAccount]?: InstructionEntry<
+            UpgradeNonceAccountConfig,
+            UpgradeNonceAccountCallback
+        >;
+    };
+
     /**
      * Requirements for this program in the transaction.
      * - `true`: Program MUST be present in the transaction.
@@ -192,9 +275,12 @@ export interface SystemProgramPolicyConfig extends ProgramPolicyConfig<
  *             maxLamports: 1_000_000_000n, // 1 SOL max
  *             allowedDestinations: [TREASURY_ADDRESS],
  *         },
- *         // Custom: full control with a function
- *         [SystemInstruction.CreateAccount]: async (ctx) => {
- *             // Custom validation logic
+ *         // Custom: full control with a typed callback
+ *         [SystemInstruction.CreateAccount]: async (ctx, instruction) => {
+ *             // instruction is fully typed as ParsedCreateAccountInstruction
+ *             // - instruction.data.lamports (bigint)
+ *             // - instruction.data.space (bigint)
+ *             // - instruction.accounts.payer.address
  *             return true;
  *         },
  *         // Simple allow
@@ -210,15 +296,16 @@ export function createSystemProgramValidator(config: SystemProgramPolicyConfig):
     return {
         programAddress: SYSTEM_PROGRAM_ADDRESS,
         required: config.required,
-        async validate(ctx: InstructionValidationContext): Promise<ValidationResult> {
+        async validate(
+            ctx: ValidationContext,
+            instruction: Instruction,
+        ): Promise<ValidationResult> {
             // Assert this is a valid System Program instruction with data and accounts
-            assertIsInstructionForProgram(ctx.instruction, SYSTEM_PROGRAM_ADDRESS);
-            assertIsInstructionWithData(ctx.instruction);
-            assertIsInstructionWithAccounts(ctx.instruction);
+            assertIsInstructionForProgram(instruction, SYSTEM_PROGRAM_ADDRESS);
+            assertIsInstructionWithData(instruction);
+            assertIsInstructionWithAccounts(instruction);
 
-            // After assertions, context is now typed for System Program
-            const typedCtx = ctx as SystemProgramValidationContext;
-            const ix = typedCtx.instruction as ValidatedInstruction;
+            const ix = instruction as ValidatedInstruction;
 
             // Identify the instruction type
             const ixType = identifySystemInstruction(ix.data);
@@ -232,361 +319,334 @@ export function createSystemProgramValidator(config: SystemProgramPolicyConfig):
 
             // Allow all: true
             if (ixConfig === true) {
-                return runCustomValidator(config.customValidator, typedCtx);
+                return true;
             }
 
-            // Validate: function or declarative config
-            let result: ValidationResult;
-            if (typeof ixConfig === "function") {
-                result = await ixConfig(typedCtx);
-            } else {
-                result = validateInstruction(ixType, ixConfig, ix);
+            // Look up the handler for this instruction type
+            const handler = instructionHandlers[ixType];
+            if (!handler) {
+                return `System Program: Unknown instruction type ${ixType}`;
             }
 
-            if (result !== true) return result;
-            return runCustomValidator(config.customValidator, typedCtx);
+            // Get the validator: user-provided callback or our built-in declarative validator
+            const validate =
+                typeof ixConfig === "function" ? ixConfig : handler.createValidator(ixConfig);
+
+            // Parse and validate
+            return await validate(ctx, handler.parse(ix));
         },
     };
 }
 
 // ============================================================================
-// Instruction-specific validation
+// Instruction handler registry
 // ============================================================================
 
-type InstructionConfig =
-    | TransferSolConfig
-    | CreateAccountConfig
-    | AssignConfig
-    | AllocateConfig
-    | AdvanceNonceAccountConfig
-    | WithdrawNonceAccountConfig
-    | InitializeNonceAccountConfig
-    | AuthorizeNonceAccountConfig
-    | UpgradeNonceAccountConfig
-    | NoConstraintsConfig;
-
-function validateInstruction(
-    ixType: SystemInstruction,
-    ixConfig: InstructionConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    switch (ixType) {
-        case SystemInstruction.TransferSol:
-            return validateTransferSol(ixConfig as TransferSolConfig, ix);
-
-        case SystemInstruction.TransferSolWithSeed:
-            return validateTransferSolWithSeed(ixConfig as TransferSolConfig, ix);
-
-        case SystemInstruction.CreateAccount:
-            return validateCreateAccount(ixConfig as CreateAccountConfig, ix);
-
-        case SystemInstruction.CreateAccountWithSeed:
-            return validateCreateAccountWithSeed(ixConfig as CreateAccountConfig, ix);
-
-        case SystemInstruction.Assign:
-            return validateAssign(ixConfig as AssignConfig, ix);
-
-        case SystemInstruction.AssignWithSeed:
-            return validateAssignWithSeed(ixConfig as AssignConfig, ix);
-
-        case SystemInstruction.Allocate:
-            return validateAllocate(ixConfig as AllocateConfig, ix);
-
-        case SystemInstruction.AllocateWithSeed:
-            return validateAllocateWithSeed(ixConfig as AllocateConfig, ix);
-
-        case SystemInstruction.AdvanceNonceAccount:
-            return validateAdvanceNonceAccount(ixConfig as AdvanceNonceAccountConfig, ix);
-
-        case SystemInstruction.WithdrawNonceAccount:
-            return validateWithdrawNonceAccount(ixConfig as WithdrawNonceAccountConfig, ix);
-
-        case SystemInstruction.InitializeNonceAccount:
-            return validateInitializeNonceAccount(ixConfig as InitializeNonceAccountConfig, ix);
-
-        case SystemInstruction.AuthorizeNonceAccount:
-            return validateAuthorizeNonceAccount(ixConfig as AuthorizeNonceAccountConfig, ix);
-
-        case SystemInstruction.UpgradeNonceAccount:
-            return validateUpgradeNonceAccount(ixConfig as UpgradeNonceAccountConfig, ix);
-
-        default:
-            return `System Program: Unknown instruction type ${ixType}`;
-    }
+/**
+ * Handler for a single instruction type.
+ * Pairs the parser with the declarative validator factory.
+ *
+ * Type safety is maintained at the handler definition level - each handler
+ * is created with correctly typed functions. The registry uses `any` because
+ * this is inherently a runtime dispatch point where we look up handlers by
+ * instruction discriminator.
+ */
+interface InstructionHandler {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    parse: (ix: ValidatedInstruction) => any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    createValidator: (config: any) => InstructionCallback<any>;
 }
 
-function validateTransferSol(
+/**
+ * Registry of all instruction handlers.
+ * Each entry pairs the parser function with the declarative validator factory.
+ */
+const instructionHandlers: Partial<Record<SystemInstruction, InstructionHandler>> = {
+    [SystemInstruction.TransferSol]: {
+        parse: parseTransferSolInstruction,
+        createValidator: createTransferSolValidator,
+    },
+    [SystemInstruction.TransferSolWithSeed]: {
+        parse: parseTransferSolWithSeedInstruction,
+        createValidator: createTransferSolWithSeedValidator,
+    },
+    [SystemInstruction.CreateAccount]: {
+        parse: parseCreateAccountInstruction,
+        createValidator: createCreateAccountValidator,
+    },
+    [SystemInstruction.CreateAccountWithSeed]: {
+        parse: parseCreateAccountWithSeedInstruction,
+        createValidator: createCreateAccountWithSeedValidator,
+    },
+    [SystemInstruction.Assign]: {
+        parse: parseAssignInstruction,
+        createValidator: createAssignValidator,
+    },
+    [SystemInstruction.AssignWithSeed]: {
+        parse: parseAssignWithSeedInstruction,
+        createValidator: createAssignWithSeedValidator,
+    },
+    [SystemInstruction.Allocate]: {
+        parse: parseAllocateInstruction,
+        createValidator: createAllocateValidator,
+    },
+    [SystemInstruction.AllocateWithSeed]: {
+        parse: parseAllocateWithSeedInstruction,
+        createValidator: createAllocateWithSeedValidator,
+    },
+    [SystemInstruction.AdvanceNonceAccount]: {
+        parse: parseAdvanceNonceAccountInstruction,
+        createValidator: createAdvanceNonceAccountValidator,
+    },
+    [SystemInstruction.WithdrawNonceAccount]: {
+        parse: parseWithdrawNonceAccountInstruction,
+        createValidator: createWithdrawNonceAccountValidator,
+    },
+    [SystemInstruction.InitializeNonceAccount]: {
+        parse: parseInitializeNonceAccountInstruction,
+        createValidator: createInitializeNonceAccountValidator,
+    },
+    [SystemInstruction.AuthorizeNonceAccount]: {
+        parse: parseAuthorizeNonceAccountInstruction,
+        createValidator: createAuthorizeNonceAccountValidator,
+    },
+    [SystemInstruction.UpgradeNonceAccount]: {
+        parse: parseUpgradeNonceAccountInstruction,
+        createValidator: createUpgradeNonceAccountValidator,
+    },
+};
+
+// --- Transfer validators ---
+function createTransferSolValidator(config: TransferSolConfig): TransferSolCallback {
+    return (_ctx, parsed) => {
+        if (config.maxLamports !== undefined && parsed.data.amount > config.maxLamports) {
+            return `System Program: TransferSol amount ${parsed.data.amount} exceeds limit ${config.maxLamports}`;
+        }
+        if (config.allowedDestinations !== undefined) {
+            if (!config.allowedDestinations.includes(parsed.accounts.destination.address)) {
+                return `System Program: TransferSol destination ${parsed.accounts.destination.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
+}
+
+function createTransferSolWithSeedValidator(
     config: TransferSolConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseTransferSolInstruction(ix);
-
-    if (config.maxLamports !== undefined && parsed.data.amount > config.maxLamports) {
-        return `System Program: TransferSol amount ${parsed.data.amount} exceeds limit ${config.maxLamports}`;
-    }
-
-    if (config.allowedDestinations !== undefined) {
-        const dest = parsed.accounts.destination.address;
-        if (!config.allowedDestinations.includes(dest)) {
-            return `System Program: TransferSol destination ${dest} not in allowlist`;
+): TransferSolWithSeedCallback {
+    return (_ctx, parsed) => {
+        if (config.maxLamports !== undefined && parsed.data.amount > config.maxLamports) {
+            return `System Program: TransferSolWithSeed amount ${parsed.data.amount} exceeds limit ${config.maxLamports}`;
         }
-    }
-
-    return true;
+        if (config.allowedDestinations !== undefined) {
+            if (!config.allowedDestinations.includes(parsed.accounts.destination.address)) {
+                return `System Program: TransferSolWithSeed destination ${parsed.accounts.destination.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }
 
-function validateTransferSolWithSeed(
-    config: TransferSolConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseTransferSolWithSeedInstruction(ix);
-
-    if (config.maxLamports !== undefined && parsed.data.amount > config.maxLamports) {
-        return `System Program: TransferSolWithSeed amount ${parsed.data.amount} exceeds limit ${config.maxLamports}`;
-    }
-
-    if (config.allowedDestinations !== undefined) {
-        const dest = parsed.accounts.destination.address;
-        if (!config.allowedDestinations.includes(dest)) {
-            return `System Program: TransferSolWithSeed destination ${dest} not in allowlist`;
+// --- CreateAccount validators ---
+function createCreateAccountValidator(config: CreateAccountConfig): CreateAccountCallback {
+    return (_ctx, parsed) => {
+        if (config.maxLamports !== undefined && parsed.data.lamports > config.maxLamports) {
+            return `System Program: CreateAccount lamports ${parsed.data.lamports} exceeds limit ${config.maxLamports}`;
         }
-    }
-
-    return true;
+        if (config.maxSpace !== undefined && parsed.data.space > config.maxSpace) {
+            return `System Program: CreateAccount space ${parsed.data.space} exceeds limit ${config.maxSpace}`;
+        }
+        if (config.allowedOwnerPrograms !== undefined) {
+            if (!config.allowedOwnerPrograms.includes(parsed.data.programAddress)) {
+                return `System Program: CreateAccount owner program ${parsed.data.programAddress} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }
 
-function validateCreateAccount(
+function createCreateAccountWithSeedValidator(
     config: CreateAccountConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseCreateAccountInstruction(ix);
-
-    if (config.maxLamports !== undefined && parsed.data.lamports > config.maxLamports) {
-        return `System Program: CreateAccount lamports ${parsed.data.lamports} exceeds limit ${config.maxLamports}`;
-    }
-
-    if (config.maxSpace !== undefined && parsed.data.space > config.maxSpace) {
-        return `System Program: CreateAccount space ${parsed.data.space} exceeds limit ${config.maxSpace}`;
-    }
-
-    if (config.allowedOwnerPrograms !== undefined) {
-        const owner = parsed.data.programAddress;
-        if (!config.allowedOwnerPrograms.includes(owner)) {
-            return `System Program: CreateAccount owner program ${owner} not in allowlist`;
+): CreateAccountWithSeedCallback {
+    return (_ctx, parsed) => {
+        if (config.maxLamports !== undefined && parsed.data.amount > config.maxLamports) {
+            return `System Program: CreateAccountWithSeed lamports ${parsed.data.amount} exceeds limit ${config.maxLamports}`;
         }
-    }
-
-    return true;
-}
-
-function validateCreateAccountWithSeed(
-    config: CreateAccountConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseCreateAccountWithSeedInstruction(ix);
-
-    if (config.maxLamports !== undefined && parsed.data.amount > config.maxLamports) {
-        return `System Program: CreateAccountWithSeed lamports ${parsed.data.amount} exceeds limit ${config.maxLamports}`;
-    }
-
-    if (config.maxSpace !== undefined && parsed.data.space > config.maxSpace) {
-        return `System Program: CreateAccountWithSeed space ${parsed.data.space} exceeds limit ${config.maxSpace}`;
-    }
-
-    if (config.allowedOwnerPrograms !== undefined) {
-        const owner = parsed.data.programAddress;
-        if (!config.allowedOwnerPrograms.includes(owner)) {
-            return `System Program: CreateAccountWithSeed owner program ${owner} not in allowlist`;
+        if (config.maxSpace !== undefined && parsed.data.space > config.maxSpace) {
+            return `System Program: CreateAccountWithSeed space ${parsed.data.space} exceeds limit ${config.maxSpace}`;
         }
-    }
-
-    return true;
-}
-
-function validateAssign(config: AssignConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseAssignInstruction(ix);
-
-    if (config.allowedOwnerPrograms !== undefined) {
-        const owner = parsed.data.programAddress;
-        if (!config.allowedOwnerPrograms.includes(owner)) {
-            return `System Program: Assign owner program ${owner} not in allowlist`;
+        if (config.allowedOwnerPrograms !== undefined) {
+            if (!config.allowedOwnerPrograms.includes(parsed.data.programAddress)) {
+                return `System Program: CreateAccountWithSeed owner program ${parsed.data.programAddress} not in allowlist`;
+            }
         }
-    }
-
-    return true;
+        return true;
+    };
 }
 
-function validateAssignWithSeed(config: AssignConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseAssignWithSeedInstruction(ix);
-
-    if (config.allowedOwnerPrograms !== undefined) {
-        const owner = parsed.data.programAddress;
-        if (!config.allowedOwnerPrograms.includes(owner)) {
-            return `System Program: AssignWithSeed owner program ${owner} not in allowlist`;
+// --- Assign validators ---
+function createAssignValidator(config: AssignConfig): AssignCallback {
+    return (_ctx, parsed) => {
+        if (config.allowedOwnerPrograms !== undefined) {
+            if (!config.allowedOwnerPrograms.includes(parsed.data.programAddress)) {
+                return `System Program: Assign owner program ${parsed.data.programAddress} not in allowlist`;
+            }
         }
-    }
-
-    return true;
+        return true;
+    };
 }
 
-function validateAllocate(config: AllocateConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseAllocateInstruction(ix);
-
-    if (config.maxSpace !== undefined && parsed.data.space > config.maxSpace) {
-        return `System Program: Allocate space ${parsed.data.space} exceeds limit ${config.maxSpace}`;
-    }
-
-    return true;
+function createAssignWithSeedValidator(config: AssignConfig): AssignWithSeedCallback {
+    return (_ctx, parsed) => {
+        if (config.allowedOwnerPrograms !== undefined) {
+            if (!config.allowedOwnerPrograms.includes(parsed.data.programAddress)) {
+                return `System Program: AssignWithSeed owner program ${parsed.data.programAddress} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }
 
-function validateAllocateWithSeed(
-    config: AllocateConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseAllocateWithSeedInstruction(ix);
-
-    if (config.maxSpace !== undefined && parsed.data.space > config.maxSpace) {
-        return `System Program: AllocateWithSeed space ${parsed.data.space} exceeds limit ${config.maxSpace}`;
-    }
-
-    return true;
+// --- Allocate validators ---
+function createAllocateValidator(config: AllocateConfig): AllocateCallback {
+    return (_ctx, parsed) => {
+        if (config.maxSpace !== undefined && parsed.data.space > config.maxSpace) {
+            return `System Program: Allocate space ${parsed.data.space} exceeds limit ${config.maxSpace}`;
+        }
+        return true;
+    };
 }
 
-function validateAdvanceNonceAccount(
+function createAllocateWithSeedValidator(config: AllocateConfig): AllocateWithSeedCallback {
+    return (_ctx, parsed) => {
+        if (config.maxSpace !== undefined && parsed.data.space > config.maxSpace) {
+            return `System Program: AllocateWithSeed space ${parsed.data.space} exceeds limit ${config.maxSpace}`;
+        }
+        return true;
+    };
+}
+
+// --- Nonce validators ---
+function createAdvanceNonceAccountValidator(
     config: AdvanceNonceAccountConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseAdvanceNonceAccountInstruction(ix);
-    const nonceCheck = ensureAddressAllowed(
-        config.allowedNonceAccounts,
-        parsed.accounts.nonceAccount.address,
-        `System Program: AdvanceNonceAccount nonce account ${parsed.accounts.nonceAccount.address} not in allowlist`,
-    );
-    if (nonceCheck !== true) return nonceCheck;
-
-    const authorityCheck = ensureAddressAllowed(
-        config.allowedAuthorities,
-        parsed.accounts.nonceAuthority.address,
-        `System Program: AdvanceNonceAccount authority ${parsed.accounts.nonceAuthority.address} not in allowlist`,
-    );
-    if (authorityCheck !== true) return authorityCheck;
-
-    return true;
+): AdvanceNonceAccountCallback {
+    return (_ctx, parsed) => {
+        const nonceCheck = checkAddressAllowed(
+            config.allowedNonceAccounts,
+            parsed.accounts.nonceAccount.address,
+            `System Program: AdvanceNonceAccount nonce account ${parsed.accounts.nonceAccount.address} not in allowlist`,
+        );
+        if (nonceCheck !== true) return nonceCheck;
+        const authorityCheck = checkAddressAllowed(
+            config.allowedAuthorities,
+            parsed.accounts.nonceAuthority.address,
+            `System Program: AdvanceNonceAccount authority ${parsed.accounts.nonceAuthority.address} not in allowlist`,
+        );
+        if (authorityCheck !== true) return authorityCheck;
+        return true;
+    };
 }
 
-function validateWithdrawNonceAccount(
+function createWithdrawNonceAccountValidator(
     config: WithdrawNonceAccountConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseWithdrawNonceAccountInstruction(ix);
-
-    const nonceCheck = ensureAddressAllowed(
-        config.allowedNonceAccounts,
-        parsed.accounts.nonceAccount.address,
-        `System Program: WithdrawNonceAccount nonce account ${parsed.accounts.nonceAccount.address} not in allowlist`,
-    );
-    if (nonceCheck !== true) return nonceCheck;
-
-    const authorityCheck = ensureAddressAllowed(
-        config.allowedAuthorities,
-        parsed.accounts.nonceAuthority.address,
-        `System Program: WithdrawNonceAccount authority ${parsed.accounts.nonceAuthority.address} not in allowlist`,
-    );
-    if (authorityCheck !== true) return authorityCheck;
-
-    const recipientCheck = ensureAddressAllowed(
-        config.allowedRecipients,
-        parsed.accounts.recipientAccount.address,
-        `System Program: WithdrawNonceAccount recipient ${parsed.accounts.recipientAccount.address} not in allowlist`,
-    );
-    if (recipientCheck !== true) return recipientCheck;
-
-    if (config.maxLamports !== undefined && parsed.data.withdrawAmount > config.maxLamports) {
-        return `System Program: WithdrawNonceAccount amount ${parsed.data.withdrawAmount} exceeds limit ${config.maxLamports}`;
-    }
-
-    return true;
+): WithdrawNonceAccountCallback {
+    return (_ctx, parsed) => {
+        const nonceCheck = checkAddressAllowed(
+            config.allowedNonceAccounts,
+            parsed.accounts.nonceAccount.address,
+            `System Program: WithdrawNonceAccount nonce account ${parsed.accounts.nonceAccount.address} not in allowlist`,
+        );
+        if (nonceCheck !== true) return nonceCheck;
+        const authorityCheck = checkAddressAllowed(
+            config.allowedAuthorities,
+            parsed.accounts.nonceAuthority.address,
+            `System Program: WithdrawNonceAccount authority ${parsed.accounts.nonceAuthority.address} not in allowlist`,
+        );
+        if (authorityCheck !== true) return authorityCheck;
+        const recipientCheck = checkAddressAllowed(
+            config.allowedRecipients,
+            parsed.accounts.recipientAccount.address,
+            `System Program: WithdrawNonceAccount recipient ${parsed.accounts.recipientAccount.address} not in allowlist`,
+        );
+        if (recipientCheck !== true) return recipientCheck;
+        if (config.maxLamports !== undefined && parsed.data.withdrawAmount > config.maxLamports) {
+            return `System Program: WithdrawNonceAccount amount ${parsed.data.withdrawAmount} exceeds limit ${config.maxLamports}`;
+        }
+        return true;
+    };
 }
 
-function validateInitializeNonceAccount(
+function createInitializeNonceAccountValidator(
     config: InitializeNonceAccountConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseInitializeNonceAccountInstruction(ix);
-
-    const nonceCheck = ensureAddressAllowed(
-        config.allowedNonceAccounts,
-        parsed.accounts.nonceAccount.address,
-        `System Program: InitializeNonceAccount nonce account ${parsed.accounts.nonceAccount.address} not in allowlist`,
-    );
-    if (nonceCheck !== true) return nonceCheck;
-
-    const newAuthorityCheck = ensureAddressAllowed(
-        config.allowedNewAuthorities,
-        parsed.data.nonceAuthority,
-        `System Program: InitializeNonceAccount authority ${parsed.data.nonceAuthority} not in allowlist`,
-    );
-    if (newAuthorityCheck !== true) return newAuthorityCheck;
-
-    return true;
+): InitializeNonceAccountCallback {
+    return (_ctx, parsed) => {
+        const nonceCheck = checkAddressAllowed(
+            config.allowedNonceAccounts,
+            parsed.accounts.nonceAccount.address,
+            `System Program: InitializeNonceAccount nonce account ${parsed.accounts.nonceAccount.address} not in allowlist`,
+        );
+        if (nonceCheck !== true) return nonceCheck;
+        const newAuthorityCheck = checkAddressAllowed(
+            config.allowedNewAuthorities,
+            parsed.data.nonceAuthority,
+            `System Program: InitializeNonceAccount authority ${parsed.data.nonceAuthority} not in allowlist`,
+        );
+        if (newAuthorityCheck !== true) return newAuthorityCheck;
+        return true;
+    };
 }
 
-function validateAuthorizeNonceAccount(
+function createAuthorizeNonceAccountValidator(
     config: AuthorizeNonceAccountConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseAuthorizeNonceAccountInstruction(ix);
-
-    const nonceCheck = ensureAddressAllowed(
-        config.allowedNonceAccounts,
-        parsed.accounts.nonceAccount.address,
-        `System Program: AuthorizeNonceAccount nonce account ${parsed.accounts.nonceAccount.address} not in allowlist`,
-    );
-    if (nonceCheck !== true) return nonceCheck;
-
-    const currentAuthorityCheck = ensureAddressAllowed(
-        config.allowedCurrentAuthorities,
-        parsed.accounts.nonceAuthority.address,
-        `System Program: AuthorizeNonceAccount authority ${parsed.accounts.nonceAuthority.address} not in allowlist`,
-    );
-    if (currentAuthorityCheck !== true) return currentAuthorityCheck;
-
-    const newAuthorityCheck = ensureAddressAllowed(
-        config.allowedNewAuthorities,
-        parsed.data.newNonceAuthority,
-        `System Program: AuthorizeNonceAccount new authority ${parsed.data.newNonceAuthority} not in allowlist`,
-    );
-    if (newAuthorityCheck !== true) return newAuthorityCheck;
-
-    return true;
+): AuthorizeNonceAccountCallback {
+    return (_ctx, parsed) => {
+        const nonceCheck = checkAddressAllowed(
+            config.allowedNonceAccounts,
+            parsed.accounts.nonceAccount.address,
+            `System Program: AuthorizeNonceAccount nonce account ${parsed.accounts.nonceAccount.address} not in allowlist`,
+        );
+        if (nonceCheck !== true) return nonceCheck;
+        const currentAuthorityCheck = checkAddressAllowed(
+            config.allowedCurrentAuthorities,
+            parsed.accounts.nonceAuthority.address,
+            `System Program: AuthorizeNonceAccount authority ${parsed.accounts.nonceAuthority.address} not in allowlist`,
+        );
+        if (currentAuthorityCheck !== true) return currentAuthorityCheck;
+        const newAuthorityCheck = checkAddressAllowed(
+            config.allowedNewAuthorities,
+            parsed.data.newNonceAuthority,
+            `System Program: AuthorizeNonceAccount new authority ${parsed.data.newNonceAuthority} not in allowlist`,
+        );
+        if (newAuthorityCheck !== true) return newAuthorityCheck;
+        return true;
+    };
 }
 
-function validateUpgradeNonceAccount(
+function createUpgradeNonceAccountValidator(
     config: UpgradeNonceAccountConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseUpgradeNonceAccountInstruction(ix);
-
-    const nonceCheck = ensureAddressAllowed(
-        config.allowedNonceAccounts,
-        parsed.accounts.nonceAccount.address,
-        `System Program: UpgradeNonceAccount nonce account ${parsed.accounts.nonceAccount.address} not in allowlist`,
-    );
-    if (nonceCheck !== true) return nonceCheck;
-
-    return true;
+): UpgradeNonceAccountCallback {
+    return (_ctx, parsed) => {
+        const nonceCheck = checkAddressAllowed(
+            config.allowedNonceAccounts,
+            parsed.accounts.nonceAccount.address,
+            `System Program: UpgradeNonceAccount nonce account ${parsed.accounts.nonceAccount.address} not in allowlist`,
+        );
+        if (nonceCheck !== true) return nonceCheck;
+        return true;
+    };
 }
 
-function ensureAddressAllowed(
+// ============================================================================
+// Helpers
+// ============================================================================
+
+function checkAddressAllowed(
     allowlist: Address[] | undefined,
     candidate: Address,
     errorMessage: string,
 ): ValidationResult {
-    if (!allowlist || allowlist.length === 0) {
-        return true;
-    }
-    if (allowlist.includes(candidate)) {
-        return true;
-    }
+    if (!allowlist || allowlist.length === 0) return true;
+    if (allowlist.includes(candidate)) return true;
     return errorMessage;
 }

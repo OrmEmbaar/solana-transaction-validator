@@ -14,20 +14,20 @@ import {
     parseSetLoadedAccountsDataSizeLimitInstruction,
 } from "@solana-program/compute-budget";
 import type {
-    InstructionValidationContext,
+    ParsedSetComputeUnitLimitInstruction,
+    ParsedSetComputeUnitPriceInstruction,
+    ParsedRequestHeapFrameInstruction,
+    ParsedSetLoadedAccountsDataSizeLimitInstruction,
+} from "@solana-program/compute-budget";
+import type {
+    ValidationContext,
     ValidationResult,
     ProgramValidator,
-    ProgramPolicyConfig,
+    InstructionCallback,
 } from "../types.js";
-import { runCustomValidator } from "./utils.js";
 
 // Re-export for convenience
 export { COMPUTE_BUDGET_PROGRAM_ADDRESS, ComputeBudgetInstruction };
-
-// Program-specific context type
-export type ComputeBudgetValidationContext = InstructionValidationContext<
-    typeof COMPUTE_BUDGET_PROGRAM_ADDRESS
->;
 
 // Type for a validated instruction with data
 type ValidatedInstruction = Instruction & InstructionWithData<Uint8Array>;
@@ -63,18 +63,22 @@ export interface SetLoadedAccountsDataSizeLimitConfig {
 /** Empty config for instructions with no additional constraints */
 export type NoConstraintsConfig = Record<string, never>;
 
-/** Map instruction types to their config types */
-export interface ComputeBudgetInstructionConfigs {
-    [ComputeBudgetInstruction.RequestUnits]: NoConstraintsConfig; // Deprecated but may appear
-    [ComputeBudgetInstruction.SetComputeUnitLimit]: SetComputeUnitLimitConfig;
-    [ComputeBudgetInstruction.SetComputeUnitPrice]: SetComputeUnitPriceConfig;
-    [ComputeBudgetInstruction.RequestHeapFrame]: RequestHeapFrameConfig;
-    [ComputeBudgetInstruction.SetLoadedAccountsDataSizeLimit]: SetLoadedAccountsDataSizeLimitConfig;
-}
+// ============================================================================
+// Typed instruction callbacks
+// ============================================================================
+
+export type SetComputeUnitLimitCallback = InstructionCallback<ParsedSetComputeUnitLimitInstruction>;
+export type SetComputeUnitPriceCallback = InstructionCallback<ParsedSetComputeUnitPriceInstruction>;
+export type RequestHeapFrameCallback = InstructionCallback<ParsedRequestHeapFrameInstruction>;
+export type SetLoadedAccountsDataSizeLimitCallback =
+    InstructionCallback<ParsedSetLoadedAccountsDataSizeLimitInstruction>;
 
 // ============================================================================
 // Main config type
 // ============================================================================
+
+/** Config entry for a single instruction: boolean, declarative config, or typed callback */
+type InstructionEntry<TConfig, TCallback> = undefined | boolean | TConfig | TCallback;
 
 /**
  * Configuration for the Compute Budget Program policy.
@@ -84,13 +88,33 @@ export interface ComputeBudgetInstructionConfigs {
  * - `false`: instruction is explicitly DENIED (self-documenting)
  * - `true`: instruction is ALLOWED with no constraints
  * - Config object: instruction is ALLOWED with declarative constraints
- * - Function: instruction is ALLOWED with custom validation logic
+ * - Function: instruction is ALLOWED with custom validation logic (receives typed parsed instruction)
  */
-export interface ComputeBudgetPolicyConfig extends ProgramPolicyConfig<
-    typeof COMPUTE_BUDGET_PROGRAM_ADDRESS,
-    ComputeBudgetInstruction,
-    ComputeBudgetInstructionConfigs
-> {
+export interface ComputeBudgetPolicyConfig {
+    /**
+     * Per-instruction configuration with typed callbacks.
+     */
+    instructions: {
+        [ComputeBudgetInstruction.SetComputeUnitLimit]?: InstructionEntry<
+            SetComputeUnitLimitConfig,
+            SetComputeUnitLimitCallback
+        >;
+        [ComputeBudgetInstruction.SetComputeUnitPrice]?: InstructionEntry<
+            SetComputeUnitPriceConfig,
+            SetComputeUnitPriceCallback
+        >;
+        [ComputeBudgetInstruction.RequestHeapFrame]?: InstructionEntry<
+            RequestHeapFrameConfig,
+            RequestHeapFrameCallback
+        >;
+        [ComputeBudgetInstruction.SetLoadedAccountsDataSizeLimit]?: InstructionEntry<
+            SetLoadedAccountsDataSizeLimitConfig,
+            SetLoadedAccountsDataSizeLimitCallback
+        >;
+        // RequestUnits is deprecated but may still appear
+        [ComputeBudgetInstruction.RequestUnits]?: boolean;
+    };
+
     /**
      * Requirements for this program in the transaction.
      * - `true`: Program MUST be present in the transaction.
@@ -107,9 +131,6 @@ export interface ComputeBudgetPolicyConfig extends ProgramPolicyConfig<
 /**
  * Creates a policy for the Compute Budget Program.
  *
- * Uses the official @solana-program/compute-budget package for instruction
- * identification and parsing.
- *
  * @param config - The Compute Budget policy configuration
  * @returns A ProgramValidator that validates Compute Budget instructions
  *
@@ -121,13 +142,13 @@ export interface ComputeBudgetPolicyConfig extends ProgramPolicyConfig<
  *         [ComputeBudgetInstruction.SetComputeUnitLimit]: {
  *             maxUnits: 1_400_000,
  *         },
- *         // Custom: full control with a function
- *         [ComputeBudgetInstruction.SetComputeUnitPrice]: async (ctx) => {
- *             // Custom validation logic
+ *         // Custom: full control with a typed callback
+ *         [ComputeBudgetInstruction.SetComputeUnitPrice]: async (ctx, instruction) => {
+ *             // instruction is fully typed as ParsedSetComputeUnitPriceInstruction
  *             return true;
  *         },
  *     },
- *     required: true, // This program must be present in the transaction
+ *     required: true,
  * });
  * ```
  */
@@ -135,14 +156,15 @@ export function createComputeBudgetValidator(config: ComputeBudgetPolicyConfig):
     return {
         programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS,
         required: config.required,
-        async validate(ctx: InstructionValidationContext): Promise<ValidationResult> {
+        async validate(
+            ctx: ValidationContext,
+            instruction: Instruction,
+        ): Promise<ValidationResult> {
             // Assert this is a valid Compute Budget Program instruction with data
-            assertIsInstructionForProgram(ctx.instruction, COMPUTE_BUDGET_PROGRAM_ADDRESS);
-            assertIsInstructionWithData(ctx.instruction);
+            assertIsInstructionForProgram(instruction, COMPUTE_BUDGET_PROGRAM_ADDRESS);
+            assertIsInstructionWithData(instruction);
 
-            // After assertions, context is now typed for Compute Budget Program
-            const typedCtx = ctx as ComputeBudgetValidationContext;
-            const ix = typedCtx.instruction as ValidatedInstruction;
+            const ix = instruction as ValidatedInstruction;
 
             // Identify the instruction type
             const ixType = identifyComputeBudgetInstruction(ix.data);
@@ -156,115 +178,109 @@ export function createComputeBudgetValidator(config: ComputeBudgetPolicyConfig):
 
             // Allow all: true
             if (ixConfig === true) {
-                return runCustomValidator(config.customValidator, typedCtx);
+                return true;
             }
 
-            // Validate: function or declarative config
-            let result: ValidationResult;
-            if (typeof ixConfig === "function") {
-                result = await ixConfig(typedCtx);
-            } else {
-                result = validateInstruction(ixType, ixConfig, ix);
+            // Look up the handler for this instruction type
+            const handler = instructionHandlers[ixType];
+            if (!handler) {
+                // No handler means this instruction just passes through (like RequestUnits)
+                return true;
             }
 
-            if (result !== true) return result;
-            return runCustomValidator(config.customValidator, typedCtx);
+            // Get the validator: user-provided callback or our built-in declarative validator
+            const validate =
+                typeof ixConfig === "function" ? ixConfig : handler.createValidator(ixConfig);
+
+            // Parse and validate
+            return await validate(ctx, handler.parse(ix));
         },
     };
 }
 
 // ============================================================================
-// Instruction-specific validation
+// Instruction handler registry
 // ============================================================================
 
-type InstructionConfig =
-    | SetComputeUnitLimitConfig
-    | SetComputeUnitPriceConfig
-    | RequestHeapFrameConfig
-    | SetLoadedAccountsDataSizeLimitConfig
-    | NoConstraintsConfig;
-
-function validateInstruction(
-    ixType: ComputeBudgetInstruction,
-    ixConfig: InstructionConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    switch (ixType) {
-        case ComputeBudgetInstruction.SetComputeUnitLimit:
-            return validateSetComputeUnitLimit(ixConfig as SetComputeUnitLimitConfig, ix);
-
-        case ComputeBudgetInstruction.SetComputeUnitPrice:
-            return validateSetComputeUnitPrice(ixConfig as SetComputeUnitPriceConfig, ix);
-
-        case ComputeBudgetInstruction.RequestHeapFrame:
-            return validateRequestHeapFrame(ixConfig as RequestHeapFrameConfig, ix);
-
-        case ComputeBudgetInstruction.SetLoadedAccountsDataSizeLimit:
-            return validateSetLoadedAccountsDataSizeLimit(
-                ixConfig as SetLoadedAccountsDataSizeLimitConfig,
-                ix,
-            );
-
-        case ComputeBudgetInstruction.RequestUnits:
-            // No additional validation for these instructions
-            return true;
-
-        default:
-            return `Compute Budget: Unknown instruction type ${ixType}`;
-    }
+/**
+ * Handler for a single instruction type.
+ * Pairs the parser with the declarative validator factory.
+ */
+interface InstructionHandler {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    parse: (ix: ValidatedInstruction) => any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    createValidator: (config: any) => InstructionCallback<any>;
 }
 
-function validateSetComputeUnitLimit(
+/**
+ * Registry of all instruction handlers.
+ * Each entry pairs the parser function with the declarative validator factory.
+ */
+const instructionHandlers: Partial<Record<ComputeBudgetInstruction, InstructionHandler>> = {
+    [ComputeBudgetInstruction.SetComputeUnitLimit]: {
+        parse: parseSetComputeUnitLimitInstruction,
+        createValidator: createSetComputeUnitLimitValidator,
+    },
+    [ComputeBudgetInstruction.SetComputeUnitPrice]: {
+        parse: parseSetComputeUnitPriceInstruction,
+        createValidator: createSetComputeUnitPriceValidator,
+    },
+    [ComputeBudgetInstruction.RequestHeapFrame]: {
+        parse: parseRequestHeapFrameInstruction,
+        createValidator: createRequestHeapFrameValidator,
+    },
+    [ComputeBudgetInstruction.SetLoadedAccountsDataSizeLimit]: {
+        parse: parseSetLoadedAccountsDataSizeLimitInstruction,
+        createValidator: createSetLoadedAccountsDataSizeLimitValidator,
+    },
+};
+
+// ============================================================================
+// Declarative validators
+// ============================================================================
+
+function createSetComputeUnitLimitValidator(
     config: SetComputeUnitLimitConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseSetComputeUnitLimitInstruction(ix);
-
-    if (config.maxUnits !== undefined && parsed.data.units > config.maxUnits) {
-        return `Compute Budget: SetComputeUnitLimit units ${parsed.data.units} exceeds limit ${config.maxUnits}`;
-    }
-
-    return true;
+): SetComputeUnitLimitCallback {
+    return (_ctx, parsed) => {
+        if (config.maxUnits !== undefined && parsed.data.units > config.maxUnits) {
+            return `Compute Budget: SetComputeUnitLimit units ${parsed.data.units} exceeds limit ${config.maxUnits}`;
+        }
+        return true;
+    };
 }
 
-function validateSetComputeUnitPrice(
+function createSetComputeUnitPriceValidator(
     config: SetComputeUnitPriceConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseSetComputeUnitPriceInstruction(ix);
-
-    if (
-        config.maxMicroLamportsPerCu !== undefined &&
-        parsed.data.microLamports > config.maxMicroLamportsPerCu
-    ) {
-        return `Compute Budget: SetComputeUnitPrice microLamports ${parsed.data.microLamports} exceeds limit ${config.maxMicroLamportsPerCu}`;
-    }
-
-    return true;
+): SetComputeUnitPriceCallback {
+    return (_ctx, parsed) => {
+        if (
+            config.maxMicroLamportsPerCu !== undefined &&
+            parsed.data.microLamports > config.maxMicroLamportsPerCu
+        ) {
+            return `Compute Budget: SetComputeUnitPrice microLamports ${parsed.data.microLamports} exceeds limit ${config.maxMicroLamportsPerCu}`;
+        }
+        return true;
+    };
 }
 
-function validateRequestHeapFrame(
-    config: RequestHeapFrameConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseRequestHeapFrameInstruction(ix);
-
-    if (config.maxBytes !== undefined && parsed.data.bytes > config.maxBytes) {
-        return `Compute Budget: RequestHeapFrame bytes ${parsed.data.bytes} exceeds limit ${config.maxBytes}`;
-    }
-
-    return true;
+function createRequestHeapFrameValidator(config: RequestHeapFrameConfig): RequestHeapFrameCallback {
+    return (_ctx, parsed) => {
+        if (config.maxBytes !== undefined && parsed.data.bytes > config.maxBytes) {
+            return `Compute Budget: RequestHeapFrame bytes ${parsed.data.bytes} exceeds limit ${config.maxBytes}`;
+        }
+        return true;
+    };
 }
 
-function validateSetLoadedAccountsDataSizeLimit(
+function createSetLoadedAccountsDataSizeLimitValidator(
     config: SetLoadedAccountsDataSizeLimitConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseSetLoadedAccountsDataSizeLimitInstruction(ix);
-
-    if (config.maxBytes !== undefined && parsed.data.accountDataSizeLimit > config.maxBytes) {
-        return `Compute Budget: SetLoadedAccountsDataSizeLimit bytes ${parsed.data.accountDataSizeLimit} exceeds limit ${config.maxBytes}`;
-    }
-
-    return true;
+): SetLoadedAccountsDataSizeLimitCallback {
+    return (_ctx, parsed) => {
+        if (config.maxBytes !== undefined && parsed.data.accountDataSizeLimit > config.maxBytes) {
+            return `Compute Budget: SetLoadedAccountsDataSizeLimit bytes ${parsed.data.accountDataSizeLimit} exceeds limit ${config.maxBytes}`;
+        }
+        return true;
+    };
 }

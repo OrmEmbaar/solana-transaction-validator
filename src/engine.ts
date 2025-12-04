@@ -8,7 +8,6 @@ import type { Address, Instruction, Transaction } from "@solana/kit";
 import type {
     GlobalPolicyConfig,
     ValidationContext,
-    InstructionValidationContext,
     ValidationResult,
     ProgramValidator,
     TransactionInput,
@@ -174,13 +173,7 @@ async function validateInstructions(
             );
         }
 
-        const ixCtx: InstructionValidationContext = {
-            ...ctx,
-            instruction: ix,
-            instructionIndex: index,
-        };
-
-        const result = await validator.validate(ixCtx);
+        const result = await validator.validate(ctx, ix);
         assertAllowed(
             result,
             `Validator for program ${ix.programAddress} rejected instruction ${index}`,

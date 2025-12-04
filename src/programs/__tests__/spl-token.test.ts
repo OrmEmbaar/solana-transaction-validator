@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createSplTokenValidator, TokenInstruction } from "../spl-token.js";
-import type { InstructionValidationContext } from "../../types.js";
-import { address, type Instruction } from "@solana/kit";
+import type { ValidationContext } from "../../types.js";
+import { Address, address } from "@solana/kit";
 import {
     getTransferInstruction,
     getTransferCheckedInstruction,
@@ -29,19 +29,19 @@ const DELEGATE = address("11111111111111111111111111111117");
 const ANOTHER_DELEGATE = address("11111111111111111111111111111118");
 const ANOTHER_OWNER = address("1111111111111111111111111111111A");
 
-// Helper to create a mock instruction context
-const createMockContext = (instruction: Instruction): InstructionValidationContext => {
+// Helper to create a mock validation context (without instruction - that's passed separately)
+const createMockContext = (): ValidationContext => {
     return {
         signer: SIGNER,
-        transaction: {} as InstructionValidationContext["transaction"],
-        compiledMessage: {} as InstructionValidationContext["compiledMessage"],
-        decompiledMessage: {} as InstructionValidationContext["decompiledMessage"],
-        instruction: instruction as InstructionValidationContext["instruction"],
-        instructionIndex: 0,
+        transaction: {} as ValidationContext["transaction"],
+        compiledMessage: {} as ValidationContext["compiledMessage"],
+        decompiledMessage: {} as ValidationContext["decompiledMessage"],
     };
 };
 
 describe("createSplTokenValidator", () => {
+    const ctx = createMockContext();
+
     describe("instruction allowlist", () => {
         it("should deny instruction when not in config", async () => {
             const policy = createSplTokenValidator({
@@ -55,7 +55,7 @@ describe("createSplTokenValidator", () => {
                 authority: SIGNER,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("Transfer instruction not allowed");
         });
 
@@ -73,7 +73,7 @@ describe("createSplTokenValidator", () => {
                 amount: 1000n,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("explicitly denied");
         });
 
@@ -91,7 +91,7 @@ describe("createSplTokenValidator", () => {
                 amount: 1000n,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -99,7 +99,7 @@ describe("createSplTokenValidator", () => {
             let validatorCalled = false;
             const policy = createSplTokenValidator({
                 instructions: {
-                    [TokenInstruction.Transfer]: async () => {
+                    [TokenInstruction.Transfer]: async (_ctx, _parsed) => {
                         validatorCalled = true;
                         return true;
                     },
@@ -113,7 +113,7 @@ describe("createSplTokenValidator", () => {
                 amount: 1000n,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
             expect(validatorCalled).toBe(true);
         });
@@ -136,7 +136,7 @@ describe("createSplTokenValidator", () => {
                 amount: 500_000n,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -156,7 +156,7 @@ describe("createSplTokenValidator", () => {
                 amount: 2_000_000n,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("exceeds limit");
         });
     });
@@ -180,7 +180,7 @@ describe("createSplTokenValidator", () => {
                 decimals: 6,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -202,7 +202,7 @@ describe("createSplTokenValidator", () => {
                 decimals: 6,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("not in allowlist");
         });
 
@@ -225,7 +225,7 @@ describe("createSplTokenValidator", () => {
                 amount: 500_000n,
                 decimals: 6,
             });
-            expect(await policy.validate(createMockContext(ix1))).toBe(true);
+            expect(await policy.validate(ctx, ix1)).toBe(true);
 
             // Invalid amount
             const ix2 = getTransferCheckedInstruction({
@@ -236,7 +236,7 @@ describe("createSplTokenValidator", () => {
                 amount: 2_000_000n,
                 decimals: 6,
             });
-            expect(await policy.validate(createMockContext(ix2))).toContain("exceeds limit");
+            expect(await policy.validate(ctx, ix2)).toContain("exceeds limit");
 
             // Invalid mint
             const ix3 = getTransferCheckedInstruction({
@@ -247,7 +247,7 @@ describe("createSplTokenValidator", () => {
                 amount: 500_000n,
                 decimals: 6,
             });
-            expect(await policy.validate(createMockContext(ix3))).toContain("not in allowlist");
+            expect(await policy.validate(ctx, ix3)).toContain("not in allowlist");
         });
     });
 
@@ -268,7 +268,7 @@ describe("createSplTokenValidator", () => {
                 amount: 500_000n,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -288,7 +288,7 @@ describe("createSplTokenValidator", () => {
                 amount: 2_000_000n,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("exceeds limit");
         });
 
@@ -308,7 +308,7 @@ describe("createSplTokenValidator", () => {
                 amount: 1000n,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -328,7 +328,7 @@ describe("createSplTokenValidator", () => {
                 amount: 1000n,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("not in allowlist");
         });
     });
@@ -354,7 +354,7 @@ describe("createSplTokenValidator", () => {
                 amount: 500_000n,
                 decimals: 6,
             });
-            expect(await policy.validate(createMockContext(ix1))).toBe(true);
+            expect(await policy.validate(ctx, ix1)).toBe(true);
 
             // Invalid amount
             const ix2 = getApproveCheckedInstruction({
@@ -365,7 +365,7 @@ describe("createSplTokenValidator", () => {
                 amount: 2_000_000n,
                 decimals: 6,
             });
-            expect(await policy.validate(createMockContext(ix2))).toContain("exceeds limit");
+            expect(await policy.validate(ctx, ix2)).toContain("exceeds limit");
 
             // Invalid mint
             const ix3 = getApproveCheckedInstruction({
@@ -376,7 +376,7 @@ describe("createSplTokenValidator", () => {
                 amount: 500_000n,
                 decimals: 6,
             });
-            expect(await policy.validate(createMockContext(ix3))).toContain("not in allowlist");
+            expect(await policy.validate(ctx, ix3)).toContain("not in allowlist");
 
             // Invalid delegate
             const ix4 = getApproveCheckedInstruction({
@@ -387,7 +387,7 @@ describe("createSplTokenValidator", () => {
                 amount: 500_000n,
                 decimals: 6,
             });
-            expect(await policy.validate(createMockContext(ix4))).toContain("not in allowlist");
+            expect(await policy.validate(ctx, ix4)).toContain("not in allowlist");
         });
     });
 
@@ -408,7 +408,7 @@ describe("createSplTokenValidator", () => {
                 amount: 500_000n,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -428,7 +428,7 @@ describe("createSplTokenValidator", () => {
                 amount: 2_000_000n,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("exceeds limit");
         });
 
@@ -448,7 +448,7 @@ describe("createSplTokenValidator", () => {
                 amount: 1000n,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -468,7 +468,7 @@ describe("createSplTokenValidator", () => {
                 amount: 1000n,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("not in allowlist");
         });
     });
@@ -492,7 +492,7 @@ describe("createSplTokenValidator", () => {
                 amount: 500_000n,
                 decimals: 6,
             });
-            expect(await policy.validate(createMockContext(ix1))).toBe(true);
+            expect(await policy.validate(ctx, ix1)).toBe(true);
 
             // Invalid amount
             const ix2 = getMintToCheckedInstruction({
@@ -502,7 +502,7 @@ describe("createSplTokenValidator", () => {
                 amount: 2_000_000n,
                 decimals: 6,
             });
-            expect(await policy.validate(createMockContext(ix2))).toContain("exceeds limit");
+            expect(await policy.validate(ctx, ix2)).toContain("exceeds limit");
 
             // Invalid mint
             const ix3 = getMintToCheckedInstruction({
@@ -512,7 +512,7 @@ describe("createSplTokenValidator", () => {
                 amount: 500_000n,
                 decimals: 6,
             });
-            expect(await policy.validate(createMockContext(ix3))).toContain("not in allowlist");
+            expect(await policy.validate(ctx, ix3)).toContain("not in allowlist");
         });
     });
 
@@ -533,7 +533,7 @@ describe("createSplTokenValidator", () => {
                 amount: 500_000n,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -553,7 +553,7 @@ describe("createSplTokenValidator", () => {
                 amount: 2_000_000n,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("exceeds limit");
         });
     });
@@ -577,7 +577,7 @@ describe("createSplTokenValidator", () => {
                 amount: 500_000n,
                 decimals: 6,
             });
-            expect(await policy.validate(createMockContext(ix1))).toBe(true);
+            expect(await policy.validate(ctx, ix1)).toBe(true);
 
             // Invalid amount
             const ix2 = getBurnCheckedInstruction({
@@ -587,7 +587,7 @@ describe("createSplTokenValidator", () => {
                 amount: 2_000_000n,
                 decimals: 6,
             });
-            expect(await policy.validate(createMockContext(ix2))).toContain("exceeds limit");
+            expect(await policy.validate(ctx, ix2)).toContain("exceeds limit");
 
             // Invalid mint
             const ix3 = getBurnCheckedInstruction({
@@ -597,7 +597,7 @@ describe("createSplTokenValidator", () => {
                 amount: 500_000n,
                 decimals: 6,
             });
-            expect(await policy.validate(createMockContext(ix3))).toContain("not in allowlist");
+            expect(await policy.validate(ctx, ix3)).toContain("not in allowlist");
         });
     });
 
@@ -618,7 +618,7 @@ describe("createSplTokenValidator", () => {
                 newAuthority: DELEGATE,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -638,7 +638,7 @@ describe("createSplTokenValidator", () => {
                 newAuthority: DELEGATE,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("not in allowlist");
         });
     });
@@ -659,7 +659,7 @@ describe("createSplTokenValidator", () => {
                 owner: SIGNER,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
         });
 
@@ -677,7 +677,7 @@ describe("createSplTokenValidator", () => {
                 owner: ANOTHER_OWNER,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toContain("owner");
             expect(result).toContain("not in allowlist");
         });
@@ -701,7 +701,7 @@ describe("createSplTokenValidator", () => {
                 owner: SIGNER,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
 
             const disallowed = getCloseAccountInstruction({
@@ -709,7 +709,7 @@ describe("createSplTokenValidator", () => {
                 destination: ANOTHER_DESTINATION,
                 owner: SIGNER,
             });
-            const disallowedResult = await policy.validate(createMockContext(disallowed));
+            const disallowedResult = await policy.validate(ctx, disallowed);
             expect(disallowedResult).toContain("destination");
             expect(disallowedResult).toContain("not in allowlist");
         });
@@ -733,7 +733,7 @@ describe("createSplTokenValidator", () => {
                 owner: SIGNER,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
 
             const badAuthority = getFreezeAccountInstruction({
@@ -741,7 +741,7 @@ describe("createSplTokenValidator", () => {
                 mint: MINT,
                 owner: ANOTHER_OWNER,
             });
-            const badResult = await policy.validate(createMockContext(badAuthority));
+            const badResult = await policy.validate(ctx, badAuthority);
             expect(badResult).toContain("authority");
         });
 
@@ -762,7 +762,7 @@ describe("createSplTokenValidator", () => {
                 owner: SIGNER,
             });
 
-            const result = await policy.validate(createMockContext(ix));
+            const result = await policy.validate(ctx, ix);
             expect(result).toBe(true);
 
             const badMint = getThawAccountInstruction({
@@ -770,24 +770,25 @@ describe("createSplTokenValidator", () => {
                 mint: ANOTHER_MINT,
                 owner: SIGNER,
             });
-            const badResult = await policy.validate(createMockContext(badMint));
+            const badResult = await policy.validate(ctx, badMint);
             expect(badResult).toContain("mint");
             expect(badResult).toContain("not in allowlist");
         });
     });
 
-    describe("custom validators", () => {
-        it("should run program-level custom validator", async () => {
-            let customValidatorCalled = false;
+    describe("instruction-level typed callbacks", () => {
+        it("should receive correctly typed Transfer instruction", async () => {
+            let receivedAmount: bigint | undefined;
+            let receivedSource: Address | undefined;
+            let receivedDestination: Address | undefined;
             const policy = createSplTokenValidator({
                 instructions: {
-                    [TokenInstruction.Transfer]: {
-                        maxAmount: 1_000_000n,
+                    [TokenInstruction.Transfer]: async (_ctx, parsed) => {
+                        receivedAmount = parsed.data.amount;
+                        receivedSource = parsed.accounts.source.address;
+                        receivedDestination = parsed.accounts.destination.address;
+                        return true;
                     },
-                },
-                customValidator: () => {
-                    customValidatorCalled = true;
-                    return true;
                 },
             });
 
@@ -795,24 +796,79 @@ describe("createSplTokenValidator", () => {
                 source: TOKEN_ACCOUNT,
                 destination: DESTINATION,
                 authority: SIGNER,
-                amount: 500_000n,
+                amount: 1_234_567n,
             });
+            await policy.validate(ctx, ix);
 
-            await policy.validate(createMockContext(ix));
-            expect(customValidatorCalled).toBe(true);
+            expect(receivedAmount).toBe(1_234_567n);
+            expect(receivedSource).toBe(TOKEN_ACCOUNT);
+            expect(receivedDestination).toBe(DESTINATION);
         });
 
-        it("should not run custom validator if validation fails", async () => {
-            let customValidatorCalled = false;
+        it("should receive correctly typed TransferChecked instruction", async () => {
+            let receivedAmount: bigint | undefined;
+            let receivedDecimals: number | undefined;
+            let receivedMint: Address | undefined;
             const policy = createSplTokenValidator({
                 instructions: {
-                    [TokenInstruction.Transfer]: {
-                        maxAmount: 1_000_000n,
+                    [TokenInstruction.TransferChecked]: async (_ctx, parsed) => {
+                        receivedAmount = parsed.data.amount;
+                        receivedDecimals = parsed.data.decimals;
+                        receivedMint = parsed.accounts.mint.address;
+                        return true;
                     },
                 },
-                customValidator: () => {
-                    customValidatorCalled = true;
-                    return true;
+            });
+
+            const ix = getTransferCheckedInstruction({
+                source: TOKEN_ACCOUNT,
+                mint: MINT,
+                destination: DESTINATION,
+                authority: SIGNER,
+                amount: 5_000_000n,
+                decimals: 9,
+            });
+            await policy.validate(ctx, ix);
+
+            expect(receivedAmount).toBe(5_000_000n);
+            expect(receivedDecimals).toBe(9);
+            expect(receivedMint).toBe(MINT);
+        });
+
+        it("should receive correctly typed Approve instruction", async () => {
+            let receivedAmount: bigint | undefined;
+            let receivedDelegate: Address | undefined;
+            const policy = createSplTokenValidator({
+                instructions: {
+                    [TokenInstruction.Approve]: async (_ctx, parsed) => {
+                        receivedAmount = parsed.data.amount;
+                        receivedDelegate = parsed.accounts.delegate.address;
+                        return true;
+                    },
+                },
+            });
+
+            const ix = getApproveInstruction({
+                source: TOKEN_ACCOUNT,
+                delegate: ANOTHER_DESTINATION,
+                owner: SIGNER,
+                amount: 999_999n,
+            });
+            await policy.validate(ctx, ix);
+
+            expect(receivedAmount).toBe(999_999n);
+            expect(receivedDelegate).toBe(ANOTHER_DESTINATION);
+        });
+
+        it("should reject based on parsed instruction data", async () => {
+            const policy = createSplTokenValidator({
+                instructions: {
+                    [TokenInstruction.Transfer]: async (_ctx, parsed) => {
+                        if (parsed.data.amount > 1_000_000n) {
+                            return `Transfer amount ${parsed.data.amount} exceeds maximum`;
+                        }
+                        return true;
+                    },
                 },
             });
 
@@ -822,17 +878,46 @@ describe("createSplTokenValidator", () => {
                 authority: SIGNER,
                 amount: 2_000_000n,
             });
-
-            await policy.validate(createMockContext(ix));
-            expect(customValidatorCalled).toBe(false);
+            const result = await policy.validate(ctx, ix);
+            expect(result).toContain("Transfer amount 2000000 exceeds maximum");
         });
 
-        it("should return custom validator error", async () => {
+        it("should allow/deny based on parsed accounts", async () => {
             const policy = createSplTokenValidator({
                 instructions: {
-                    [TokenInstruction.Transfer]: true,
+                    [TokenInstruction.Transfer]: async (_ctx, parsed) => {
+                        // Only allow transfers to ANOTHER_DESTINATION
+                        return parsed.accounts.destination.address === ANOTHER_DESTINATION;
+                    },
                 },
-                customValidator: () => "Custom validation failed",
+            });
+
+            const allowedIx = getTransferInstruction({
+                source: TOKEN_ACCOUNT,
+                destination: ANOTHER_DESTINATION,
+                authority: SIGNER,
+                amount: 1000n,
+            });
+            const deniedIx = getTransferInstruction({
+                source: TOKEN_ACCOUNT,
+                destination: DESTINATION,
+                authority: SIGNER,
+                amount: 1000n,
+            });
+
+            expect(await policy.validate(ctx, allowedIx)).toBe(true);
+            expect(await policy.validate(ctx, deniedIx)).toBe(false);
+        });
+
+        it("should pass validation context to callback", async () => {
+            let receivedSigner: Address | undefined;
+            const policy = createSplTokenValidator({
+                instructions: {
+                    [TokenInstruction.Transfer]: async (ctx, _parsed) => {
+                        receivedSigner = ctx.signer;
+                        return true;
+                    },
+                },
             });
 
             const ix = getTransferInstruction({
@@ -841,9 +926,29 @@ describe("createSplTokenValidator", () => {
                 authority: SIGNER,
                 amount: 1000n,
             });
+            await policy.validate(ctx, ix);
 
-            const result = await policy.validate(createMockContext(ix));
-            expect(result).toBe("Custom validation failed");
+            expect(receivedSigner).toBe(SIGNER);
+        });
+
+        it("should support async callbacks with delays", async () => {
+            const policy = createSplTokenValidator({
+                instructions: {
+                    [TokenInstruction.Transfer]: async (_ctx, _parsed) => {
+                        await new Promise((resolve) => setTimeout(resolve, 10));
+                        return true;
+                    },
+                },
+            });
+
+            const ix = getTransferInstruction({
+                source: TOKEN_ACCOUNT,
+                destination: DESTINATION,
+                authority: SIGNER,
+                amount: 1000n,
+            });
+            const result = await policy.validate(ctx, ix);
+            expect(result).toBe(true);
         });
     });
 });

@@ -41,22 +41,6 @@ export interface ValidationContext {
 }
 
 /**
- * Context for instruction-level validation.
- * Extends ValidationContext with the specific instruction being validated.
- *
- * @template TProgramAddress - The program address type (narrows the instruction)
- */
-export interface InstructionValidationContext<
-    TProgramAddress extends string = string,
-> extends ValidationContext {
-    /** The specific instruction being validated */
-    instruction: Instruction<TProgramAddress>;
-
-    /** The index of this instruction in the transaction */
-    instructionIndex: number;
-}
-
-/**
  * Result of a validation.
  * - `true`: Allowed
  * - `false`: Denied (generic rejection)
@@ -77,34 +61,35 @@ export interface InstructionValidationContext<
 export type ValidationResult = boolean | string;
 
 /**
- * Custom validation callback for instruction-level validation.
+ * Callback for instruction-level validation with a fully typed parsed instruction.
  *
- * Use this when declarative constraints aren't sufficient and you need
- * full programmatic control over validation logic.
+ * Use this when you need full programmatic control over validation logic.
+ * The instruction is already parsed and typed for the specific instruction type.
  *
- * @template TProgramAddress - The program address type for narrowing
+ * @template TInstruction - The parsed instruction type (e.g., ParsedTransferSolInstruction)
  *
  * @example
  * ```typescript
- * const customValidator: CustomValidationCallback = async (ctx) => {
- *     const { instruction, signer } = ctx;
- *
- *     // Access parsed instruction data
- *     if (instruction.data[0] === 0x01) {
- *         return "Instruction type 0x01 is not allowed";
+ * // For SystemInstruction.TransferSol, callback receives ParsedTransferSolInstruction
+ * const transferCallback: InstructionCallback<ParsedTransferSolInstruction> = (
+ *     ctx,
+ *     instruction,
+ *     index
+ * ) => {
+ *     // TypeScript knows the exact type:
+ *     // - instruction.data.amount (bigint)
+ *     // - instruction.accounts.source.address
+ *     // - instruction.accounts.destination.address
+ *     if (instruction.data.amount > 1_000_000_000n) {
+ *         return "Transfer too large";
  *     }
- *
- *     // Check signer involvement
- *     if (instruction.accounts?.some(acc => acc.address === signer)) {
- *         return true;
- *     }
- *
- *     return "Signer must be involved in instruction";
+ *     return true;
  * };
  * ```
  */
-export type CustomValidationCallback<TProgramAddress extends string = string> = (
-    ctx: InstructionValidationContext<TProgramAddress>,
+export type InstructionCallback<TInstruction> = (
+    ctx: ValidationContext,
+    instruction: TInstruction,
 ) => Promise<ValidationResult> | ValidationResult;
 
 /**
@@ -226,7 +211,10 @@ export interface GlobalValidator {
  * An instruction validator validates a single instruction.
  */
 export interface InstructionValidator {
-    validate(ctx: InstructionValidationContext): Promise<ValidationResult> | ValidationResult;
+    validate(
+        ctx: ValidationContext,
+        instruction: Instruction,
+    ): Promise<ValidationResult> | ValidationResult;
 }
 
 /**
@@ -253,43 +241,13 @@ export interface ProgramValidator extends InstructionValidator {
  * - `false`: instruction is explicitly DENIED (self-documenting)
  * - `true`: instruction is ALLOWED with no validation
  * - Object (TConfig): instruction is ALLOWED with declarative constraints
- * - Function (CustomValidationCallback): instruction is ALLOWED with custom validation
+ * - Function (InstructionCallback): instruction is ALLOWED with custom validation
  *
- * @template TProgramAddress - The program address literal type
  * @template TConfig - The instruction-specific config type
+ * @template TParsedInstruction - The parsed instruction type for typed callbacks
  */
-export type InstructionConfigEntry<TProgramAddress extends string, TConfig> =
+export type InstructionConfigEntry<TConfig, TParsedInstruction> =
     | undefined
     | boolean
     | TConfig
-    | CustomValidationCallback<TProgramAddress>;
-
-/**
- * Base configuration for program policies with program-specific typing.
- *
- * @template TProgramAddress - The program address literal type
- * @template TInstruction - The instruction enum type
- * @template TInstructionConfigs - Map of instruction types to their config types
- */
-export interface ProgramPolicyConfig<
-    TProgramAddress extends string,
-    TInstruction extends number | string,
-    TInstructionConfigs extends Record<TInstruction, unknown>,
-> {
-    /**
-     * Per-instruction configuration.
-     *
-     * Each instruction can be configured as:
-     * - Omitted/undefined: instruction is implicitly DENIED
-     * - `false`: instruction is explicitly DENIED (self-documenting)
-     * - `true`: instruction is ALLOWED with no constraints
-     * - Config object: instruction is ALLOWED with declarative constraints
-     * - Function: instruction is ALLOWED with custom validation logic
-     */
-    instructions: {
-        [K in TInstruction]?: InstructionConfigEntry<TProgramAddress, TInstructionConfigs[K]>;
-    };
-
-    /** Program-level custom validator (runs after instruction-level validation) */
-    customValidator?: CustomValidationCallback<TProgramAddress>;
-}
+    | InstructionCallback<TParsedInstruction>;

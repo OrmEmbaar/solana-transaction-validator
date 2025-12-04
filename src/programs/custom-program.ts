@@ -1,11 +1,6 @@
 import { type Address, type ReadonlyUint8Array, assertIsInstructionWithData } from "@solana/kit";
-import type { InstructionValidationContext, ValidationResult, ProgramValidator } from "../types.js";
-import {
-    arraysEqual,
-    hasPrefix,
-    runCustomValidator,
-    type CustomValidationCallback,
-} from "./utils.js";
+import type { ValidationResult, ProgramValidator } from "../types.js";
+import { arraysEqual, hasPrefix } from "./utils.js";
 
 /**
  * A rule for matching instruction discriminators.
@@ -42,9 +37,6 @@ export interface CustomProgramPolicyConfig {
     /** Array of allowed instruction discriminator rules */
     allowedInstructions: DiscriminatorRule[];
 
-    /** Optional callback for additional validation after discriminator check */
-    customValidator?: CustomValidationCallback;
-
     /**
      * Requirements for this program in the transaction.
      * - `true`: Program MUST be present in the transaction.
@@ -72,11 +64,7 @@ export interface CustomProgramPolicyConfig {
  *         { discriminator: new Uint8Array([0, 1, 2, 3]), matchMode: 'prefix' },
  *         { discriminator: new Uint8Array([4, 5, 6, 7, 8, 9, 10, 11]), matchMode: 'exact' },
  *     ],
- *     customValidator: async (ctx) => {
- *         // Additional validation logic
- *         return true;
- *     },
- *     required: true, // This program must be present in the transaction
+ *     required: true,
  * });
  * ```
  */
@@ -84,15 +72,15 @@ export function createCustomProgramValidator(config: CustomProgramPolicyConfig):
     return {
         programAddress: config.programAddress,
         required: config.required,
-        async validate(ctx: InstructionValidationContext): Promise<ValidationResult> {
+        async validate(_ctx, instruction): Promise<ValidationResult> {
             // Verify program address matches (defensive check)
-            if (ctx.instruction.programAddress !== config.programAddress) {
-                return `Custom Program: Program address mismatch - expected ${config.programAddress}, got ${ctx.instruction.programAddress}`;
+            if (instruction.programAddress !== config.programAddress) {
+                return `Custom Program: Program address mismatch - expected ${config.programAddress}, got ${instruction.programAddress}`;
             }
 
             // Assert instruction has data
-            assertIsInstructionWithData(ctx.instruction);
-            const ixData = ctx.instruction.data;
+            assertIsInstructionWithData(instruction);
+            const ixData = instruction.data;
 
             // Check discriminator allowlist
             const matchedRule = config.allowedInstructions.find((rule) => {
@@ -112,8 +100,7 @@ export function createCustomProgramValidator(config: CustomProgramPolicyConfig):
                 return `Custom Program: Instruction discriminator 0x${discriminatorPreview}${suffix} not in allowlist for program ${config.programAddress}`;
             }
 
-            // Run custom validator if provided
-            return runCustomValidator(config.customValidator, ctx);
+            return true;
         },
     };
 }

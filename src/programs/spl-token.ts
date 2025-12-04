@@ -27,18 +27,29 @@ import {
     parseThawAccountInstruction,
 } from "@solana-program/token";
 import type {
-    InstructionValidationContext,
+    ParsedTransferInstruction,
+    ParsedTransferCheckedInstruction,
+    ParsedApproveInstruction,
+    ParsedApproveCheckedInstruction,
+    ParsedMintToInstruction,
+    ParsedMintToCheckedInstruction,
+    ParsedBurnInstruction,
+    ParsedBurnCheckedInstruction,
+    ParsedSetAuthorityInstruction,
+    ParsedRevokeInstruction,
+    ParsedCloseAccountInstruction,
+    ParsedFreezeAccountInstruction,
+    ParsedThawAccountInstruction,
+} from "@solana-program/token";
+import type {
+    ValidationContext,
     ValidationResult,
     ProgramValidator,
-    ProgramPolicyConfig,
+    InstructionCallback,
 } from "../types.js";
-import { runCustomValidator } from "./utils.js";
 
 // Re-export for convenience
 export { TOKEN_PROGRAM_ADDRESS, TokenInstruction };
-
-// Program-specific context type
-export type SplTokenValidationContext = InstructionValidationContext<typeof TOKEN_PROGRAM_ADDRESS>;
 
 // Type for a fully validated instruction
 type ValidatedInstruction = Instruction &
@@ -110,7 +121,7 @@ export interface FreezeThawConfig {
 }
 
 /** Config for Revoke instruction */
-export interface RevokeSimpleConfig {
+export interface RevokeConfig {
     /** Allowlist of token accounts whose delegates can be revoked */
     allowedSources?: Address[];
     /** Allowlist of owners permitted to perform revoke */
@@ -120,41 +131,30 @@ export interface RevokeSimpleConfig {
 /** Empty config for instructions with no additional constraints */
 export type NoConstraintsConfig = Record<string, never>;
 
-/** Map instruction types to their config types */
-export interface TokenInstructionConfigs {
-    [TokenInstruction.Transfer]: TransferConfig;
-    [TokenInstruction.TransferChecked]: TransferConfig;
-    [TokenInstruction.Approve]: ApproveConfig;
-    [TokenInstruction.ApproveChecked]: ApproveConfig;
-    [TokenInstruction.MintTo]: MintToConfig;
-    [TokenInstruction.MintToChecked]: MintToConfig;
-    [TokenInstruction.Burn]: BurnConfig;
-    [TokenInstruction.BurnChecked]: BurnConfig;
-    [TokenInstruction.SetAuthority]: SetAuthorityConfig;
-    // Simple operations with declarative controls
-    [TokenInstruction.Revoke]: RevokeSimpleConfig;
-    [TokenInstruction.CloseAccount]: CloseAccountConfig;
-    [TokenInstruction.FreezeAccount]: FreezeThawConfig;
-    [TokenInstruction.ThawAccount]: FreezeThawConfig;
-    [TokenInstruction.SyncNative]: NoConstraintsConfig;
-    // Initialization instructions
-    [TokenInstruction.InitializeMint]: NoConstraintsConfig;
-    [TokenInstruction.InitializeMint2]: NoConstraintsConfig;
-    [TokenInstruction.InitializeAccount]: NoConstraintsConfig;
-    [TokenInstruction.InitializeAccount2]: NoConstraintsConfig;
-    [TokenInstruction.InitializeAccount3]: NoConstraintsConfig;
-    [TokenInstruction.InitializeMultisig]: NoConstraintsConfig;
-    [TokenInstruction.InitializeMultisig2]: NoConstraintsConfig;
-    [TokenInstruction.InitializeImmutableOwner]: NoConstraintsConfig;
-    // Other instructions
-    [TokenInstruction.GetAccountDataSize]: NoConstraintsConfig;
-    [TokenInstruction.AmountToUiAmount]: NoConstraintsConfig;
-    [TokenInstruction.UiAmountToAmount]: NoConstraintsConfig;
-}
+// ============================================================================
+// Typed instruction callbacks
+// ============================================================================
+
+export type TransferCallback = InstructionCallback<ParsedTransferInstruction>;
+export type TransferCheckedCallback = InstructionCallback<ParsedTransferCheckedInstruction>;
+export type ApproveCallback = InstructionCallback<ParsedApproveInstruction>;
+export type ApproveCheckedCallback = InstructionCallback<ParsedApproveCheckedInstruction>;
+export type MintToCallback = InstructionCallback<ParsedMintToInstruction>;
+export type MintToCheckedCallback = InstructionCallback<ParsedMintToCheckedInstruction>;
+export type BurnCallback = InstructionCallback<ParsedBurnInstruction>;
+export type BurnCheckedCallback = InstructionCallback<ParsedBurnCheckedInstruction>;
+export type SetAuthorityCallback = InstructionCallback<ParsedSetAuthorityInstruction>;
+export type RevokeCallback = InstructionCallback<ParsedRevokeInstruction>;
+export type CloseAccountCallback = InstructionCallback<ParsedCloseAccountInstruction>;
+export type FreezeAccountCallback = InstructionCallback<ParsedFreezeAccountInstruction>;
+export type ThawAccountCallback = InstructionCallback<ParsedThawAccountInstruction>;
 
 // ============================================================================
 // Main config type
 // ============================================================================
+
+/** Config entry for a single instruction: boolean, declarative config, or typed callback */
+type InstructionEntry<TConfig, TCallback> = undefined | boolean | TConfig | TCallback;
 
 /**
  * Configuration for the SPL Token Program policy.
@@ -164,13 +164,53 @@ export interface TokenInstructionConfigs {
  * - `false`: instruction is explicitly DENIED (self-documenting)
  * - `true`: instruction is ALLOWED with no constraints
  * - Config object: instruction is ALLOWED with declarative constraints
- * - Function: instruction is ALLOWED with custom validation logic
+ * - Function: instruction is ALLOWED with custom validation logic (receives typed parsed instruction)
  */
-export interface SplTokenPolicyConfig extends ProgramPolicyConfig<
-    typeof TOKEN_PROGRAM_ADDRESS,
-    TokenInstruction,
-    TokenInstructionConfigs
-> {
+export interface SplTokenPolicyConfig {
+    /**
+     * Per-instruction configuration with typed callbacks.
+     */
+    instructions: {
+        [TokenInstruction.Transfer]?: InstructionEntry<TransferConfig, TransferCallback>;
+        [TokenInstruction.TransferChecked]?: InstructionEntry<
+            TransferConfig,
+            TransferCheckedCallback
+        >;
+        [TokenInstruction.Approve]?: InstructionEntry<ApproveConfig, ApproveCallback>;
+        [TokenInstruction.ApproveChecked]?: InstructionEntry<ApproveConfig, ApproveCheckedCallback>;
+        [TokenInstruction.MintTo]?: InstructionEntry<MintToConfig, MintToCallback>;
+        [TokenInstruction.MintToChecked]?: InstructionEntry<MintToConfig, MintToCheckedCallback>;
+        [TokenInstruction.Burn]?: InstructionEntry<BurnConfig, BurnCallback>;
+        [TokenInstruction.BurnChecked]?: InstructionEntry<BurnConfig, BurnCheckedCallback>;
+        [TokenInstruction.SetAuthority]?: InstructionEntry<
+            SetAuthorityConfig,
+            SetAuthorityCallback
+        >;
+        [TokenInstruction.Revoke]?: InstructionEntry<RevokeConfig, RevokeCallback>;
+        [TokenInstruction.CloseAccount]?: InstructionEntry<
+            CloseAccountConfig,
+            CloseAccountCallback
+        >;
+        [TokenInstruction.FreezeAccount]?: InstructionEntry<
+            FreezeThawConfig,
+            FreezeAccountCallback
+        >;
+        [TokenInstruction.ThawAccount]?: InstructionEntry<FreezeThawConfig, ThawAccountCallback>;
+        // Simple operations - just allow/deny, no config
+        [TokenInstruction.SyncNative]?: boolean;
+        [TokenInstruction.InitializeMint]?: boolean;
+        [TokenInstruction.InitializeMint2]?: boolean;
+        [TokenInstruction.InitializeAccount]?: boolean;
+        [TokenInstruction.InitializeAccount2]?: boolean;
+        [TokenInstruction.InitializeAccount3]?: boolean;
+        [TokenInstruction.InitializeMultisig]?: boolean;
+        [TokenInstruction.InitializeMultisig2]?: boolean;
+        [TokenInstruction.InitializeImmutableOwner]?: boolean;
+        [TokenInstruction.GetAccountDataSize]?: boolean;
+        [TokenInstruction.AmountToUiAmount]?: boolean;
+        [TokenInstruction.UiAmountToAmount]?: boolean;
+    };
+
     /**
      * Requirements for this program in the transaction.
      * - `true`: Program MUST be present in the transaction.
@@ -201,9 +241,11 @@ export interface SplTokenPolicyConfig extends ProgramPolicyConfig<
  *         [TokenInstruction.Transfer]: {
  *             maxAmount: 1_000_000n,
  *         },
- *         // Custom: full control with a function
- *         [TokenInstruction.TransferChecked]: async (ctx) => {
- *             // Custom validation logic
+ *         // Custom: full control with a typed callback
+ *         [TokenInstruction.TransferChecked]: async (ctx, instruction) => {
+ *             // instruction is fully typed as ParsedTransferCheckedInstruction
+ *             // - instruction.data.amount (bigint)
+ *             // - instruction.accounts.mint.address
  *             return true;
  *         },
  *         // Simple allow
@@ -219,15 +261,16 @@ export function createSplTokenValidator(config: SplTokenPolicyConfig): ProgramVa
     return {
         programAddress: TOKEN_PROGRAM_ADDRESS,
         required: config.required,
-        async validate(ctx: InstructionValidationContext): Promise<ValidationResult> {
+        async validate(
+            ctx: ValidationContext,
+            instruction: Instruction,
+        ): Promise<ValidationResult> {
             // Assert this is a valid Token Program instruction with data and accounts
-            assertIsInstructionForProgram(ctx.instruction, TOKEN_PROGRAM_ADDRESS);
-            assertIsInstructionWithData(ctx.instruction);
-            assertIsInstructionWithAccounts(ctx.instruction);
+            assertIsInstructionForProgram(instruction, TOKEN_PROGRAM_ADDRESS);
+            assertIsInstructionWithData(instruction);
+            assertIsInstructionWithAccounts(instruction);
 
-            // After assertions, context is now typed for SPL Token Program
-            const typedCtx = ctx as SplTokenValidationContext;
-            const ix = typedCtx.instruction as ValidatedInstruction;
+            const ix = instruction as ValidatedInstruction;
 
             // Identify the instruction type
             const ixType = identifyTokenInstruction(ix.data);
@@ -241,340 +284,306 @@ export function createSplTokenValidator(config: SplTokenPolicyConfig): ProgramVa
 
             // Allow all: true
             if (ixConfig === true) {
-                return runCustomValidator(config.customValidator, typedCtx);
+                return true;
             }
 
-            // Validate: function or declarative config
-            let result: ValidationResult;
-            if (typeof ixConfig === "function") {
-                result = await ixConfig(typedCtx);
-            } else {
-                result = validateInstruction(ixType, ixConfig, ix);
+            // Look up the handler for this instruction type
+            const handler = instructionHandlers[ixType];
+            if (!handler) {
+                return `SPL Token: Unknown instruction type ${ixType}`;
             }
 
-            if (result !== true) return result;
-            return runCustomValidator(config.customValidator, typedCtx);
+            // Get the validator: user-provided callback or our built-in declarative validator
+            const validate =
+                typeof ixConfig === "function" ? ixConfig : handler.createValidator(ixConfig);
+
+            // Parse and validate
+            return await validate(ctx, handler.parse(ix));
         },
     };
 }
 
 // ============================================================================
-// Instruction-specific validation
+// Instruction handler registry
 // ============================================================================
 
-type InstructionConfig =
-    | TransferConfig
-    | ApproveConfig
-    | MintToConfig
-    | BurnConfig
-    | SetAuthorityConfig
-    | CloseAccountConfig
-    | FreezeThawConfig
-    | RevokeSimpleConfig
-    | NoConstraintsConfig;
-
-function validateInstruction(
-    ixType: TokenInstruction,
-    ixConfig: InstructionConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    switch (ixType) {
-        case TokenInstruction.Transfer:
-            return validateTransfer(ixConfig as TransferConfig, ix);
-
-        case TokenInstruction.TransferChecked:
-            return validateTransferChecked(ixConfig as TransferConfig, ix);
-
-        case TokenInstruction.Approve:
-            return validateApprove(ixConfig as ApproveConfig, ix);
-
-        case TokenInstruction.ApproveChecked:
-            return validateApproveChecked(ixConfig as ApproveConfig, ix);
-
-        case TokenInstruction.MintTo:
-            return validateMintTo(ixConfig as MintToConfig, ix);
-
-        case TokenInstruction.MintToChecked:
-            return validateMintToChecked(ixConfig as MintToConfig, ix);
-
-        case TokenInstruction.Burn:
-            return validateBurn(ixConfig as BurnConfig, ix);
-
-        case TokenInstruction.BurnChecked:
-            return validateBurnChecked(ixConfig as BurnConfig, ix);
-
-        case TokenInstruction.SetAuthority:
-            return validateSetAuthority(ixConfig as SetAuthorityConfig, ix);
-
-        case TokenInstruction.Revoke:
-            return validateRevoke(ixConfig as RevokeSimpleConfig, ix);
-
-        case TokenInstruction.CloseAccount:
-            return validateCloseAccount(ixConfig as CloseAccountConfig, ix);
-
-        case TokenInstruction.FreezeAccount:
-            return validateFreezeOrThaw(ixConfig as FreezeThawConfig, ix, "FreezeAccount");
-
-        case TokenInstruction.ThawAccount:
-            return validateFreezeOrThaw(ixConfig as FreezeThawConfig, ix, "ThawAccount");
-
-        // Simple operations - no additional validation needed
-        case TokenInstruction.SyncNative:
-        case TokenInstruction.InitializeMint:
-        case TokenInstruction.InitializeMint2:
-        case TokenInstruction.InitializeAccount:
-        case TokenInstruction.InitializeAccount2:
-        case TokenInstruction.InitializeAccount3:
-        case TokenInstruction.InitializeMultisig:
-        case TokenInstruction.InitializeMultisig2:
-        case TokenInstruction.InitializeImmutableOwner:
-        case TokenInstruction.GetAccountDataSize:
-        case TokenInstruction.AmountToUiAmount:
-        case TokenInstruction.UiAmountToAmount:
-            return true;
-
-        default:
-            return `SPL Token: Unknown instruction type ${ixType}`;
-    }
+/**
+ * Handler for a single instruction type.
+ * Pairs the parser with the declarative validator factory.
+ *
+ * Type safety is maintained at the handler definition level - each handler
+ * is created with correctly typed functions. The registry uses `any` because
+ * this is inherently a runtime dispatch point where we look up handlers by
+ * instruction discriminator.
+ */
+interface InstructionHandler {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    parse: (ix: ValidatedInstruction) => any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    createValidator: (config: any) => InstructionCallback<any>;
 }
 
-function validateTransfer(config: TransferConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseTransferInstruction(ix);
+/**
+ * Registry of all instruction handlers.
+ * Each entry pairs the parser function with the declarative validator factory.
+ */
+const instructionHandlers: Partial<Record<TokenInstruction, InstructionHandler>> = {
+    [TokenInstruction.Transfer]: {
+        parse: parseTransferInstruction,
+        createValidator: createTransferValidator,
+    },
+    [TokenInstruction.TransferChecked]: {
+        parse: parseTransferCheckedInstruction,
+        createValidator: createTransferCheckedValidator,
+    },
+    [TokenInstruction.Approve]: {
+        parse: parseApproveInstruction,
+        createValidator: createApproveValidator,
+    },
+    [TokenInstruction.ApproveChecked]: {
+        parse: parseApproveCheckedInstruction,
+        createValidator: createApproveCheckedValidator,
+    },
+    [TokenInstruction.MintTo]: {
+        parse: parseMintToInstruction,
+        createValidator: createMintToValidator,
+    },
+    [TokenInstruction.MintToChecked]: {
+        parse: parseMintToCheckedInstruction,
+        createValidator: createMintToCheckedValidator,
+    },
+    [TokenInstruction.Burn]: {
+        parse: parseBurnInstruction,
+        createValidator: createBurnValidator,
+    },
+    [TokenInstruction.BurnChecked]: {
+        parse: parseBurnCheckedInstruction,
+        createValidator: createBurnCheckedValidator,
+    },
+    [TokenInstruction.SetAuthority]: {
+        parse: parseSetAuthorityInstruction,
+        createValidator: createSetAuthorityValidator,
+    },
+    [TokenInstruction.Revoke]: {
+        parse: parseRevokeInstruction,
+        createValidator: createRevokeValidator,
+    },
+    [TokenInstruction.CloseAccount]: {
+        parse: parseCloseAccountInstruction,
+        createValidator: createCloseAccountValidator,
+    },
+    [TokenInstruction.FreezeAccount]: {
+        parse: parseFreezeAccountInstruction,
+        createValidator: createFreezeAccountValidator,
+    },
+    [TokenInstruction.ThawAccount]: {
+        parse: parseThawAccountInstruction,
+        createValidator: createThawAccountValidator,
+    },
+};
 
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `SPL Token: Transfer amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
-
-    // Note: Transfer instruction doesn't include mint, can't validate allowedMints
-    // Use TransferChecked for mint validation
-
-    return true;
+// --- Transfer validators ---
+function createTransferValidator(config: TransferConfig): TransferCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `SPL Token: Transfer amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
+        }
+        // Note: Transfer instruction doesn't include mint, can't validate allowedMints
+        // Use TransferChecked for mint validation
+        return true;
+    };
 }
 
-function validateTransferChecked(
-    config: TransferConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseTransferCheckedInstruction(ix);
-
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `SPL Token: TransferChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
-
-    if (config.allowedMints !== undefined) {
-        const mint = parsed.accounts.mint.address;
-        if (!config.allowedMints.includes(mint)) {
-            return `SPL Token: TransferChecked mint ${mint} not in allowlist`;
+function createTransferCheckedValidator(config: TransferConfig): TransferCheckedCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `SPL Token: TransferChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
         }
-    }
-
-    return true;
+        if (config.allowedMints !== undefined) {
+            if (!config.allowedMints.includes(parsed.accounts.mint.address)) {
+                return `SPL Token: TransferChecked mint ${parsed.accounts.mint.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }
 
-function validateApprove(config: ApproveConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseApproveInstruction(ix);
-
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `SPL Token: Approve amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
-
-    if (config.allowedDelegates !== undefined) {
-        const delegate = parsed.accounts.delegate.address;
-        if (!config.allowedDelegates.includes(delegate)) {
-            return `SPL Token: Approve delegate ${delegate} not in allowlist`;
+// --- Approve validators ---
+function createApproveValidator(config: ApproveConfig): ApproveCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `SPL Token: Approve amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
         }
-    }
-
-    // Note: Approve instruction doesn't include mint, can't validate allowedMints
-    // Use ApproveChecked for mint validation
-
-    return true;
+        if (config.allowedDelegates !== undefined) {
+            if (!config.allowedDelegates.includes(parsed.accounts.delegate.address)) {
+                return `SPL Token: Approve delegate ${parsed.accounts.delegate.address} not in allowlist`;
+            }
+        }
+        // Note: Approve instruction doesn't include mint, can't validate allowedMints
+        return true;
+    };
 }
 
-function validateApproveChecked(config: ApproveConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseApproveCheckedInstruction(ix);
-
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `SPL Token: ApproveChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
-
-    if (config.allowedMints !== undefined) {
-        const mint = parsed.accounts.mint.address;
-        if (!config.allowedMints.includes(mint)) {
-            return `SPL Token: ApproveChecked mint ${mint} not in allowlist`;
+function createApproveCheckedValidator(config: ApproveConfig): ApproveCheckedCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `SPL Token: ApproveChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
         }
-    }
-
-    if (config.allowedDelegates !== undefined) {
-        const delegate = parsed.accounts.delegate.address;
-        if (!config.allowedDelegates.includes(delegate)) {
-            return `SPL Token: ApproveChecked delegate ${delegate} not in allowlist`;
+        if (config.allowedMints !== undefined) {
+            if (!config.allowedMints.includes(parsed.accounts.mint.address)) {
+                return `SPL Token: ApproveChecked mint ${parsed.accounts.mint.address} not in allowlist`;
+            }
         }
-    }
-
-    return true;
+        if (config.allowedDelegates !== undefined) {
+            if (!config.allowedDelegates.includes(parsed.accounts.delegate.address)) {
+                return `SPL Token: ApproveChecked delegate ${parsed.accounts.delegate.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }
 
-function validateMintTo(config: MintToConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseMintToInstruction(ix);
-
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `SPL Token: MintTo amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
-
-    if (config.allowedMints !== undefined) {
-        const mint = parsed.accounts.mint.address;
-        if (!config.allowedMints.includes(mint)) {
-            return `SPL Token: MintTo mint ${mint} not in allowlist`;
+// --- MintTo validators ---
+function createMintToValidator(config: MintToConfig): MintToCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `SPL Token: MintTo amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
         }
-    }
-
-    return true;
+        if (config.allowedMints !== undefined) {
+            if (!config.allowedMints.includes(parsed.accounts.mint.address)) {
+                return `SPL Token: MintTo mint ${parsed.accounts.mint.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }
 
-function validateMintToChecked(config: MintToConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseMintToCheckedInstruction(ix);
-
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `SPL Token: MintToChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
-
-    if (config.allowedMints !== undefined) {
-        const mint = parsed.accounts.mint.address;
-        if (!config.allowedMints.includes(mint)) {
-            return `SPL Token: MintToChecked mint ${mint} not in allowlist`;
+function createMintToCheckedValidator(config: MintToConfig): MintToCheckedCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `SPL Token: MintToChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
         }
-    }
-
-    return true;
+        if (config.allowedMints !== undefined) {
+            if (!config.allowedMints.includes(parsed.accounts.mint.address)) {
+                return `SPL Token: MintToChecked mint ${parsed.accounts.mint.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }
 
-function validateBurn(config: BurnConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseBurnInstruction(ix);
-
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `SPL Token: Burn amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
-
-    // Note: Burn instruction doesn't include mint in a way we can easily validate
-    // Use BurnChecked for mint validation
-
-    return true;
+// --- Burn validators ---
+function createBurnValidator(config: BurnConfig): BurnCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `SPL Token: Burn amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
+        }
+        // Note: Burn instruction doesn't include mint in a way we can easily validate
+        return true;
+    };
 }
 
-function validateBurnChecked(config: BurnConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseBurnCheckedInstruction(ix);
-
-    if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
-        return `SPL Token: BurnChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
-    }
-
-    if (config.allowedMints !== undefined) {
-        const mint = parsed.accounts.mint.address;
-        if (!config.allowedMints.includes(mint)) {
-            return `SPL Token: BurnChecked mint ${mint} not in allowlist`;
+function createBurnCheckedValidator(config: BurnConfig): BurnCheckedCallback {
+    return (_ctx, parsed) => {
+        if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
+            return `SPL Token: BurnChecked amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
         }
-    }
-
-    return true;
+        if (config.allowedMints !== undefined) {
+            if (!config.allowedMints.includes(parsed.accounts.mint.address)) {
+                return `SPL Token: BurnChecked mint ${parsed.accounts.mint.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }
 
-function validateSetAuthority(
-    config: SetAuthorityConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseSetAuthorityInstruction(ix);
-
-    if (config.allowedAuthorityTypes !== undefined) {
-        const authorityType = parsed.data.authorityType;
-        if (!config.allowedAuthorityTypes.includes(authorityType)) {
-            return `SPL Token: SetAuthority type ${authorityType} not in allowlist`;
+// --- Other validators ---
+function createSetAuthorityValidator(config: SetAuthorityConfig): SetAuthorityCallback {
+    return (_ctx, parsed) => {
+        if (config.allowedAuthorityTypes !== undefined) {
+            if (!config.allowedAuthorityTypes.includes(parsed.data.authorityType)) {
+                return `SPL Token: SetAuthority type ${parsed.data.authorityType} not in allowlist`;
+            }
         }
-    }
-
-    return true;
+        return true;
+    };
 }
 
-function validateCloseAccount(
-    config: CloseAccountConfig,
-    ix: ValidatedInstruction,
-): ValidationResult {
-    const parsed = parseCloseAccountInstruction(ix);
-
-    if (config.allowedAccounts !== undefined) {
-        const account = parsed.accounts.account.address;
-        if (!config.allowedAccounts.includes(account)) {
-            return `SPL Token: CloseAccount account ${account} not in allowlist`;
+function createRevokeValidator(config: RevokeConfig): RevokeCallback {
+    return (_ctx, parsed) => {
+        if (config.allowedSources !== undefined) {
+            if (!config.allowedSources.includes(parsed.accounts.source.address)) {
+                return `SPL Token: Revoke source ${parsed.accounts.source.address} not in allowlist`;
+            }
         }
-    }
-
-    if (config.allowedDestinations !== undefined) {
-        const destination = parsed.accounts.destination.address;
-        if (!config.allowedDestinations.includes(destination)) {
-            return `SPL Token: CloseAccount destination ${destination} not in allowlist`;
+        if (config.allowedOwners !== undefined) {
+            if (!config.allowedOwners.includes(parsed.accounts.owner.address)) {
+                return `SPL Token: Revoke owner ${parsed.accounts.owner.address} not in allowlist`;
+            }
         }
-    }
-
-    if (config.allowedOwners !== undefined) {
-        const owner = parsed.accounts.owner.address;
-        if (!config.allowedOwners.includes(owner)) {
-            return `SPL Token: CloseAccount owner ${owner} not in allowlist`;
-        }
-    }
-
-    return true;
+        return true;
+    };
 }
 
-function validateFreezeOrThaw(
-    config: FreezeThawConfig,
-    ix: ValidatedInstruction,
-    instructionName: "FreezeAccount" | "ThawAccount",
-): ValidationResult {
-    const parsed =
-        instructionName === "FreezeAccount"
-            ? parseFreezeAccountInstruction(ix)
-            : parseThawAccountInstruction(ix);
-
-    if (config.allowedAccounts !== undefined) {
-        const account = parsed.accounts.account.address;
-        if (!config.allowedAccounts.includes(account)) {
-            return `SPL Token: ${instructionName} account ${account} not in allowlist`;
+function createCloseAccountValidator(config: CloseAccountConfig): CloseAccountCallback {
+    return (_ctx, parsed) => {
+        if (config.allowedAccounts !== undefined) {
+            if (!config.allowedAccounts.includes(parsed.accounts.account.address)) {
+                return `SPL Token: CloseAccount account ${parsed.accounts.account.address} not in allowlist`;
+            }
         }
-    }
-
-    if (config.allowedMints !== undefined) {
-        const mint = parsed.accounts.mint.address;
-        if (!config.allowedMints.includes(mint)) {
-            return `SPL Token: ${instructionName} mint ${mint} not in allowlist`;
+        if (config.allowedDestinations !== undefined) {
+            if (!config.allowedDestinations.includes(parsed.accounts.destination.address)) {
+                return `SPL Token: CloseAccount destination ${parsed.accounts.destination.address} not in allowlist`;
+            }
         }
-    }
-
-    if (config.allowedAuthorities !== undefined) {
-        const authority = parsed.accounts.owner.address;
-        if (!config.allowedAuthorities.includes(authority)) {
-            return `SPL Token: ${instructionName} authority ${authority} not in allowlist`;
+        if (config.allowedOwners !== undefined) {
+            if (!config.allowedOwners.includes(parsed.accounts.owner.address)) {
+                return `SPL Token: CloseAccount owner ${parsed.accounts.owner.address} not in allowlist`;
+            }
         }
-    }
-
-    return true;
+        return true;
+    };
 }
 
-function validateRevoke(config: RevokeSimpleConfig, ix: ValidatedInstruction): ValidationResult {
-    const parsed = parseRevokeInstruction(ix);
-
-    if (config.allowedSources !== undefined) {
-        const source = parsed.accounts.source.address;
-        if (!config.allowedSources.includes(source)) {
-            return `SPL Token: Revoke source ${source} not in allowlist`;
+function createFreezeAccountValidator(config: FreezeThawConfig): FreezeAccountCallback {
+    return (_ctx, parsed) => {
+        if (config.allowedAccounts !== undefined) {
+            if (!config.allowedAccounts.includes(parsed.accounts.account.address)) {
+                return `SPL Token: FreezeAccount account ${parsed.accounts.account.address} not in allowlist`;
+            }
         }
-    }
-
-    if (config.allowedOwners !== undefined) {
-        const owner = parsed.accounts.owner.address;
-        if (!config.allowedOwners.includes(owner)) {
-            return `SPL Token: Revoke owner ${owner} not in allowlist`;
+        if (config.allowedMints !== undefined) {
+            if (!config.allowedMints.includes(parsed.accounts.mint.address)) {
+                return `SPL Token: FreezeAccount mint ${parsed.accounts.mint.address} not in allowlist`;
+            }
         }
-    }
+        if (config.allowedAuthorities !== undefined) {
+            if (!config.allowedAuthorities.includes(parsed.accounts.owner.address)) {
+                return `SPL Token: FreezeAccount authority ${parsed.accounts.owner.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
+}
 
-    return true;
+function createThawAccountValidator(config: FreezeThawConfig): ThawAccountCallback {
+    return (_ctx, parsed) => {
+        if (config.allowedAccounts !== undefined) {
+            if (!config.allowedAccounts.includes(parsed.accounts.account.address)) {
+                return `SPL Token: ThawAccount account ${parsed.accounts.account.address} not in allowlist`;
+            }
+        }
+        if (config.allowedMints !== undefined) {
+            if (!config.allowedMints.includes(parsed.accounts.mint.address)) {
+                return `SPL Token: ThawAccount mint ${parsed.accounts.mint.address} not in allowlist`;
+            }
+        }
+        if (config.allowedAuthorities !== undefined) {
+            if (!config.allowedAuthorities.includes(parsed.accounts.owner.address)) {
+                return `SPL Token: ThawAccount authority ${parsed.accounts.owner.address} not in allowlist`;
+            }
+        }
+        return true;
+    };
 }
