@@ -80,12 +80,20 @@ For programs without `@solana-program/*` packages, use discriminator-based allow
 ```typescript
 createCustomProgramValidator({
     programAddress: address("MyProgram111111111111111111111111111111111"),
-    allowedInstructions: [
-        { discriminator: new Uint8Array([0x9a, 0x5c, ...]), matchMode: "prefix" },  // Anchor 8-byte
-        { discriminator: new Uint8Array([0, 0, 0, 1]),      matchMode: "exact" },   // exact match
+    instructions: [
+        { discriminator: new Uint8Array([0x9a, 0x5c, 0x1b, 0x3d, 0x8f, 0x2e, 0x7a, 0x4c]) }, // 8-byte Anchor
+        { discriminator: new Uint8Array([1]) }, // 1-byte native
+        {
+            discriminator: new Uint8Array([2]),
+            validate: (ctx, ix) => {
+                /* custom logic */ return true;
+            },
+        },
     ],
 });
 ```
+
+Discriminator length determines how many bytes are matched (prefix match).
 
 ## Global Policy
 

@@ -981,12 +981,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 programs: [
                     createCustomProgramValidator({
                         programAddress: CUSTOM_PROGRAM,
-                        allowedInstructions: [
-                            {
-                                discriminator: ALLOWED_DISCRIMINATOR,
-                                matchMode: "prefix",
-                            },
-                        ],
+                        instructions: [{ discriminator: ALLOWED_DISCRIMINATOR }],
                     }),
                 ],
             });
@@ -1017,16 +1012,12 @@ describe("Malicious Transaction Integration Tests", () => {
                 programs: [
                     createCustomProgramValidator({
                         programAddress: CUSTOM_PROGRAM,
-                        allowedInstructions: [
-                            {
-                                discriminator: ALLOWED_DISCRIMINATOR,
-                                matchMode: "exact",
-                            },
-                        ],
+                        instructions: [{ discriminator: ALLOWED_DISCRIMINATOR }],
                     }),
                 ],
             });
 
+            // Last byte differs from ALLOWED_DISCRIMINATOR
             const similarDiscriminator = new Uint8Array([0x01, 0x02, 0x03, 0x05]);
 
             const txMessage = pipe(
@@ -1055,12 +1046,7 @@ describe("Malicious Transaction Integration Tests", () => {
                 programs: [
                     createCustomProgramValidator({
                         programAddress: CUSTOM_PROGRAM,
-                        allowedInstructions: [
-                            {
-                                discriminator: ALLOWED_DISCRIMINATOR,
-                                matchMode: "prefix",
-                            },
-                        ],
+                        instructions: [{ discriminator: ALLOWED_DISCRIMINATOR }],
                     }),
                 ],
             });

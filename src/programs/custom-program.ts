@@ -1,29 +1,44 @@
-import { type Address, type ReadonlyUint8Array, assertIsInstructionWithData } from "@solana/kit";
-import type { ValidationResult, ProgramValidator } from "../types.js";
-import { arraysEqual, hasPrefix } from "./utils.js";
+import {
+    type Address,
+    type Instruction,
+    type ReadonlyUint8Array,
+    assertIsInstructionWithData,
+} from "@solana/kit";
+import type { ValidationContext, ValidationResult, ProgramValidator } from "../types.js";
+import { hasPrefix } from "./utils.js";
 
 /**
  * A rule for matching instruction discriminators.
+ * The discriminator length determines how many bytes are matched (prefix match).
  *
  * @example
  * ```typescript
- * // Match Anchor 8-byte discriminator (prefix)
- * { discriminator: new Uint8Array([0x9a, 0x5c, 0x1b, 0x3d, 0x8f, 0x2e, 0x7a, 0x4c]), matchMode: "prefix" }
+ * // Match Anchor 8-byte discriminator
+ * { discriminator: new Uint8Array([0x9a, 0x5c, 0x1b, 0x3d, 0x8f, 0x2e, 0x7a, 0x4c]) }
  *
- * // Match exact instruction data
- * { discriminator: new Uint8Array([2, 0, 0, 0]), matchMode: "exact" }
+ * // Match 1-byte native discriminator
+ * { discriminator: new Uint8Array([2]) }
+ *
+ * // With custom validation callback
+ * {
+ *     discriminator: new Uint8Array([0x9a, 0x5c, 0x1b, 0x3d, 0x8f, 0x2e, 0x7a, 0x4c]),
+ *     validate: (ctx, ix) => { ... }
+ * }
  * ```
  */
 export interface DiscriminatorRule {
-    /** The instruction discriminator bytes to match */
+    /** Discriminator bytes - instruction data must start with these */
     discriminator: ReadonlyUint8Array;
 
     /**
-     * How to match the discriminator:
-     * - `prefix`: Instruction data must start with these bytes
-     * - `exact`: Instruction data must exactly match these bytes
+     * Optional validation callback for additional logic.
+     * Called after discriminator match succeeds.
+     * If not provided, the instruction is allowed after discriminator match.
      */
-    matchMode: "exact" | "prefix";
+    validate?: (
+        ctx: ValidationContext,
+        instruction: Instruction,
+    ) => ValidationResult | Promise<ValidationResult>;
 }
 
 /**
@@ -34,15 +49,19 @@ export interface CustomProgramPolicyConfig {
     /** The program address this policy applies to */
     programAddress: Address;
 
-    /** Array of allowed instruction discriminator rules */
-    allowedInstructions: DiscriminatorRule[];
+    /**
+     * Array of allowed instruction discriminator rules.
+     * Instructions not matching any discriminator are denied.
+     */
+    instructions: DiscriminatorRule[];
 
     /**
      * Requirements for this program in the transaction.
      * - `true`: Program MUST be present in the transaction.
+     * - `ReadonlyUint8Array[]`: Program MUST be present AND contain instructions matching these discriminators.
      * - `undefined`: Program is optional (policy runs only if present).
      */
-    required?: boolean;
+    required?: boolean | ReadonlyUint8Array[];
 }
 
 /**
@@ -60,9 +79,16 @@ export interface CustomProgramPolicyConfig {
  * ```typescript
  * const myProgramValidator = createCustomProgramValidator({
  *     programAddress: address("MyProgram111111111111111111111111111111111"),
- *     allowedInstructions: [
- *         { discriminator: new Uint8Array([0, 1, 2, 3]), matchMode: 'prefix' },
- *         { discriminator: new Uint8Array([4, 5, 6, 7, 8, 9, 10, 11]), matchMode: 'exact' },
+ *     instructions: [
+ *         { discriminator: new Uint8Array([0x9a, 0x5c, 0x1b, 0x3d, 0x8f, 0x2e, 0x7a, 0x4c]) },
+ *         { discriminator: new Uint8Array([1]) },
+ *         {
+ *             discriminator: new Uint8Array([2]),
+ *             validate: (ctx, ix) => {
+ *                 // Custom validation logic
+ *                 return true;
+ *             },
+ *         },
  *     ],
  *     required: true,
  * });
@@ -72,7 +98,7 @@ export function createCustomProgramValidator(config: CustomProgramPolicyConfig):
     return {
         programAddress: config.programAddress,
         required: config.required,
-        async validate(_ctx, instruction): Promise<ValidationResult> {
+        async validate(ctx, instruction): Promise<ValidationResult> {
             // Verify program address matches (defensive check)
             if (instruction.programAddress !== config.programAddress) {
                 return `Custom Program: Program address mismatch - expected ${config.programAddress}, got ${instruction.programAddress}`;
@@ -82,14 +108,10 @@ export function createCustomProgramValidator(config: CustomProgramPolicyConfig):
             assertIsInstructionWithData(instruction);
             const ixData = instruction.data;
 
-            // Check discriminator allowlist
-            const matchedRule = config.allowedInstructions.find((rule) => {
-                if (rule.matchMode === "exact") {
-                    return arraysEqual(ixData, rule.discriminator);
-                } else {
-                    return hasPrefix(ixData, rule.discriminator);
-                }
-            });
+            // Find matching rule (prefix match based on discriminator length)
+            const matchedRule = config.instructions.find((rule) =>
+                hasPrefix(ixData, rule.discriminator),
+            );
 
             if (!matchedRule) {
                 // Format discriminator for error message (first 8 bytes max)
@@ -97,7 +119,12 @@ export function createCustomProgramValidator(config: CustomProgramPolicyConfig):
                     .map((b) => b.toString(16).padStart(2, "0"))
                     .join("");
                 const suffix = ixData.length > 8 ? "..." : "";
-                return `Custom Program: Instruction discriminator 0x${discriminatorPreview}${suffix} not in allowlist for program ${config.programAddress}`;
+                return `Custom Program: Discriminator 0x${discriminatorPreview}${suffix} not in allowlist`;
+            }
+
+            // Call callback if provided, otherwise allow
+            if (matchedRule.validate) {
+                return matchedRule.validate(ctx, instruction);
             }
 
             return true;

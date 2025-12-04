@@ -4,7 +4,8 @@ import {
     getCompiledTransactionMessageDecoder,
     getTransactionDecoder,
 } from "@solana/kit";
-import type { Address, Instruction, Transaction } from "@solana/kit";
+import type { Address, Instruction, ReadonlyUint8Array, Transaction } from "@solana/kit";
+import { hasPrefix } from "./programs/utils.js";
 import type {
     GlobalPolicyConfig,
     ValidationContext,
@@ -152,12 +153,47 @@ function validateRequiredPrograms(
     programMap: Map<Address, ProgramValidator>,
     instructions: readonly Instruction[],
 ): void {
-    const presentPrograms = buildProgramPresenceMap(instructions);
-
     for (const [programId, validator] of programMap) {
         if (!validator.required) continue;
-        assertProgramRequirementsMet(programId, validator.required, presentPrograms);
+
+        const programIxs = instructions.filter((ix) => ix.programAddress === programId);
+        if (programIxs.length === 0) {
+            throw new ValidationError(
+                `Required program ${programId} is not present in transaction`,
+            );
+        }
+
+        if (Array.isArray(validator.required)) {
+            for (const req of validator.required) {
+                const found = programIxs.some((ix) => matchesDiscriminator(ix.data, req));
+                if (!found) {
+                    const discriminatorStr =
+                        typeof req === "number"
+                            ? String(req)
+                            : `0x${Array.from(req)
+                                  .map((b) => b.toString(16).padStart(2, "0"))
+                                  .join("")}`;
+                    throw new ValidationError(
+                        `Required instruction ${discriminatorStr} for program ${programId} is not present`,
+                    );
+                }
+            }
+        }
     }
+}
+
+/**
+ * Checks if instruction data matches a required discriminator.
+ * - number: matches first byte (for built-in program instruction enums)
+ * - ReadonlyUint8Array: prefix match (for custom program discriminators)
+ */
+function matchesDiscriminator(
+    data: ReadonlyUint8Array | undefined,
+    req: number | ReadonlyUint8Array,
+): boolean {
+    if (!data || data.length === 0) return false;
+    if (typeof req === "number") return data[0] === req;
+    return hasPrefix(data, req);
 }
 
 async function validateInstructions(
@@ -178,48 +214,6 @@ async function validateInstructions(
             result,
             `Validator for program ${ix.programAddress} rejected instruction ${index}`,
         );
-    }
-}
-
-function buildProgramPresenceMap(
-    instructions: readonly Instruction[],
-): Map<Address, Set<number | string>> {
-    const map = new Map<Address, Set<number | string>>();
-
-    for (const ix of instructions) {
-        let discriminators = map.get(ix.programAddress);
-        if (!discriminators) {
-            discriminators = new Set();
-            map.set(ix.programAddress, discriminators);
-        }
-
-        if (ix.data && ix.data.length > 0) {
-            discriminators.add(ix.data[0]);
-        }
-    }
-
-    return map;
-}
-
-function assertProgramRequirementsMet(
-    programId: Address,
-    required: true | (number | string)[],
-    presentPrograms: Map<Address, Set<number | string>>,
-): void {
-    const presentInstructions = presentPrograms.get(programId);
-
-    if (!presentInstructions) {
-        throw new ValidationError(`Required program ${programId} is not present in transaction`);
-    }
-
-    if (Array.isArray(required)) {
-        for (const requiredIx of required) {
-            if (!presentInstructions.has(requiredIx)) {
-                throw new ValidationError(
-                    `Required instruction ${requiredIx} for program ${programId} is not present`,
-                );
-            }
-        }
     }
 }
 

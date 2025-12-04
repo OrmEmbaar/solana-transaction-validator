@@ -227,10 +227,11 @@ export interface ProgramValidator extends InstructionValidator {
     /**
      * Requirements for this program in the transaction.
      * - `true`: Program MUST be present in the transaction.
-     * - Array: Program MUST be present AND contain these instruction discriminators.
+     * - `number[]`: Program MUST be present AND contain instructions with these first-byte discriminators.
+     * - `ReadonlyUint8Array[]`: Program MUST be present AND contain instructions matching these prefix discriminators.
      * - `undefined`: Program is optional (validator runs only if present).
      */
-    required?: boolean | (number | string)[];
+    required?: boolean | (number | ReadonlyUint8Array)[];
 }
 
 /**

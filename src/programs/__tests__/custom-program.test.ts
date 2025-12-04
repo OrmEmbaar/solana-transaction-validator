@@ -30,38 +30,10 @@ describe("createCustomProgramValidator", () => {
     const ctx = createMockContext();
 
     describe("discriminator matching", () => {
-        it("should allow instruction with exact match", async () => {
+        it("should allow instruction with matching prefix", async () => {
             const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [
-                    { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "exact" },
-                ],
-            });
-
-            const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4]));
-            const result = await policy.validate(ctx, ix);
-            expect(result).toBe(true);
-        });
-
-        it("should reject instruction when exact match fails due to extra bytes", async () => {
-            const policy = createCustomProgramValidator({
-                programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [
-                    { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "exact" },
-                ],
-            });
-
-            const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5]));
-            const result = await policy.validate(ctx, ix);
-            expect(result).toContain("not in allowlist");
-        });
-
-        it("should allow instruction with prefix match", async () => {
-            const policy = createCustomProgramValidator({
-                programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [
-                    { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
-                ],
+                instructions: [{ discriminator: new Uint8Array([1, 2, 3, 4]) }],
             });
 
             const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
@@ -69,12 +41,10 @@ describe("createCustomProgramValidator", () => {
             expect(result).toBe(true);
         });
 
-        it("should allow instruction when prefix matches exactly", async () => {
+        it("should allow instruction when data exactly matches discriminator", async () => {
             const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [
-                    { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
-                ],
+                instructions: [{ discriminator: new Uint8Array([1, 2, 3, 4]) }],
             });
 
             const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4]));
@@ -85,9 +55,7 @@ describe("createCustomProgramValidator", () => {
         it("should reject instruction when prefix does not match", async () => {
             const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [
-                    { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
-                ],
+                instructions: [{ discriminator: new Uint8Array([1, 2, 3, 4]) }],
             });
 
             const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 5, 6, 7]));
@@ -95,13 +63,24 @@ describe("createCustomProgramValidator", () => {
             expect(result).toContain("not in allowlist");
         });
 
+        it("should reject instruction when data is shorter than discriminator", async () => {
+            const policy = createCustomProgramValidator({
+                programAddress: PROGRAM_ADDRESS,
+                instructions: [{ discriminator: new Uint8Array([1, 2, 3, 4]) }],
+            });
+
+            const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3]));
+            const result = await policy.validate(ctx, ix);
+            expect(result).toContain("not in allowlist");
+        });
+
         it("should allow instruction matching any of multiple rules", async () => {
             const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [
-                    { discriminator: new Uint8Array([1, 0, 0, 0]), matchMode: "prefix" },
-                    { discriminator: new Uint8Array([2, 0, 0, 0]), matchMode: "prefix" },
-                    { discriminator: new Uint8Array([3, 0, 0, 0]), matchMode: "prefix" },
+                instructions: [
+                    { discriminator: new Uint8Array([1, 0, 0, 0]) },
+                    { discriminator: new Uint8Array([2, 0, 0, 0]) },
+                    { discriminator: new Uint8Array([3, 0, 0, 0]) },
                 ],
             });
 
@@ -117,9 +96,9 @@ describe("createCustomProgramValidator", () => {
         it("should reject instruction not matching any rule", async () => {
             const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [
-                    { discriminator: new Uint8Array([1, 0, 0, 0]), matchMode: "prefix" },
-                    { discriminator: new Uint8Array([2, 0, 0, 0]), matchMode: "prefix" },
+                instructions: [
+                    { discriminator: new Uint8Array([1, 0, 0, 0]) },
+                    { discriminator: new Uint8Array([2, 0, 0, 0]) },
                 ],
             });
 
@@ -128,26 +107,112 @@ describe("createCustomProgramValidator", () => {
             expect(result).toContain("not in allowlist");
         });
 
-        it("should support mixed exact and prefix rules", async () => {
+        it("should support discriminators of different lengths", async () => {
             const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [
-                    { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "exact" },
-                    { discriminator: new Uint8Array([5, 6]), matchMode: "prefix" },
+                instructions: [
+                    { discriminator: new Uint8Array([1]) }, // 1-byte
+                    { discriminator: new Uint8Array([2, 0, 0, 0]) }, // 4-byte
+                    { discriminator: new Uint8Array([3, 0, 0, 0, 0, 0, 0, 0]) }, // 8-byte Anchor style
                 ],
             });
 
-            // Exact match
-            const ix1 = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4]));
+            // 1-byte match
+            const ix1 = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 99, 99, 99]));
             expect(await policy.validate(ctx, ix1)).toBe(true);
 
-            // Prefix match
-            const ix2 = createInstruction(PROGRAM_ADDRESS, new Uint8Array([5, 6, 7, 8, 9]));
+            // 4-byte match
+            const ix2 = createInstruction(PROGRAM_ADDRESS, new Uint8Array([2, 0, 0, 0, 99, 99]));
             expect(await policy.validate(ctx, ix2)).toBe(true);
 
-            // Neither
-            const ix3 = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5]));
-            expect(await policy.validate(ctx, ix3)).toContain("not in allowlist");
+            // 8-byte match
+            const ix3 = createInstruction(
+                PROGRAM_ADDRESS,
+                new Uint8Array([3, 0, 0, 0, 0, 0, 0, 0, 99]),
+            );
+            expect(await policy.validate(ctx, ix3)).toBe(true);
+        });
+    });
+
+    describe("validate callback", () => {
+        it("should call validate callback when discriminator matches", async () => {
+            let callbackCalled = false;
+            const policy = createCustomProgramValidator({
+                programAddress: PROGRAM_ADDRESS,
+                instructions: [
+                    {
+                        discriminator: new Uint8Array([1, 2, 3, 4]),
+                        validate: (_ctx, _ix) => {
+                            callbackCalled = true;
+                            return true;
+                        },
+                    },
+                ],
+            });
+
+            const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5, 6]));
+            await policy.validate(ctx, ix);
+            expect(callbackCalled).toBe(true);
+        });
+
+        it("should allow callback to reject instruction", async () => {
+            const policy = createCustomProgramValidator({
+                programAddress: PROGRAM_ADDRESS,
+                instructions: [
+                    {
+                        discriminator: new Uint8Array([1, 2, 3, 4]),
+                        validate: () => "Custom rejection reason",
+                    },
+                ],
+            });
+
+            const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5, 6]));
+            const result = await policy.validate(ctx, ix);
+            expect(result).toBe("Custom rejection reason");
+        });
+
+        it("should pass context and instruction to callback", async () => {
+            let receivedCtx: ValidationContext | undefined;
+            let receivedIx: Instruction | undefined;
+
+            const policy = createCustomProgramValidator({
+                programAddress: PROGRAM_ADDRESS,
+                instructions: [
+                    {
+                        discriminator: new Uint8Array([1, 2, 3, 4]),
+                        validate: (ctx, ix) => {
+                            receivedCtx = ctx;
+                            receivedIx = ix;
+                            return true;
+                        },
+                    },
+                ],
+            });
+
+            const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5, 6]));
+            await policy.validate(ctx, ix);
+
+            expect(receivedCtx).toBe(ctx);
+            expect(receivedIx).toBe(ix);
+        });
+
+        it("should support async callbacks", async () => {
+            const policy = createCustomProgramValidator({
+                programAddress: PROGRAM_ADDRESS,
+                instructions: [
+                    {
+                        discriminator: new Uint8Array([1, 2, 3, 4]),
+                        validate: async () => {
+                            await new Promise((resolve) => setTimeout(resolve, 1));
+                            return true;
+                        },
+                    },
+                ],
+            });
+
+            const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([1, 2, 3, 4, 5, 6]));
+            const result = await policy.validate(ctx, ix);
+            expect(result).toBe(true);
         });
     });
 
@@ -155,9 +220,7 @@ describe("createCustomProgramValidator", () => {
         it("should reject instruction from wrong program", async () => {
             const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [
-                    { discriminator: new Uint8Array([1, 2, 3, 4]), matchMode: "prefix" },
-                ],
+                instructions: [{ discriminator: new Uint8Array([1, 2, 3, 4]) }],
             });
 
             const ix = createInstruction(ANOTHER_PROGRAM, new Uint8Array([1, 2, 3, 4]));
@@ -170,7 +233,7 @@ describe("createCustomProgramValidator", () => {
         it("should include discriminator preview in error message", async () => {
             const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [],
+                instructions: [],
             });
 
             const ix = createInstruction(PROGRAM_ADDRESS, new Uint8Array([0xab, 0xcd, 0xef, 0x12]));
@@ -181,7 +244,7 @@ describe("createCustomProgramValidator", () => {
         it("should truncate long discriminators in error message", async () => {
             const policy = createCustomProgramValidator({
                 programAddress: PROGRAM_ADDRESS,
-                allowedInstructions: [],
+                instructions: [],
             });
 
             const ix = createInstruction(
@@ -190,6 +253,29 @@ describe("createCustomProgramValidator", () => {
             );
             const result = await policy.validate(ctx, ix);
             expect(result).toContain("...");
+        });
+    });
+
+    describe("required configuration", () => {
+        it("should set required to true", () => {
+            const policy = createCustomProgramValidator({
+                programAddress: PROGRAM_ADDRESS,
+                instructions: [{ discriminator: new Uint8Array([1]) }],
+                required: true,
+            });
+
+            expect(policy.required).toBe(true);
+        });
+
+        it("should set required to discriminator array", () => {
+            const discriminator = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
+            const policy = createCustomProgramValidator({
+                programAddress: PROGRAM_ADDRESS,
+                instructions: [{ discriminator }],
+                required: [discriminator],
+            });
+
+            expect(policy.required).toEqual([discriminator]);
         });
     });
 });

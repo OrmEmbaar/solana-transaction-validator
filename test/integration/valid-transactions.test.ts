@@ -650,12 +650,7 @@ describe("Valid Transaction Integration Tests", () => {
                 programs: [
                     createCustomProgramValidator({
                         programAddress: CUSTOM_PROGRAM,
-                        allowedInstructions: [
-                            {
-                                discriminator: ALLOWED_DISCRIMINATOR,
-                                matchMode: "prefix",
-                            },
-                        ],
+                        instructions: [{ discriminator: ALLOWED_DISCRIMINATOR }],
                     }),
                 ],
             });

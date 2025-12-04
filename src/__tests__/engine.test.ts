@@ -12,6 +12,7 @@ import {
     setTransactionMessageFeePayer,
     type Blockhash,
     type Base64EncodedWireTransaction,
+    type ReadonlyUint8Array,
 } from "@solana/kit";
 
 // Helper to create a valid wire transaction for testing
@@ -49,7 +50,7 @@ const createTestTransaction = (
 // Helper to create a mock ProgramValidator
 const createMockPolicy = (
     programAddress: string,
-    options?: { required?: boolean | (number | string)[] },
+    options?: { required?: boolean | (number | ReadonlyUint8Array)[] },
 ): ProgramValidator => ({
     programAddress: address(programAddress),
     required: options?.required,
