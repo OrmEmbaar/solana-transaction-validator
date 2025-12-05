@@ -2,8 +2,6 @@
 
 Declarative transaction validation for Solana remote signers. Define exactly what your keys can sign with a type-safe, composable policy engine built for `@solana/kit`.
 
-**Secure by default:** Programs and instructions are denied unless explicitly allowed.
-
 ## Features
 
 - **Declarative Policy**: Define rules using simple configuration objects.
