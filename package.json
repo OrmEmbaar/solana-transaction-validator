@@ -1,7 +1,7 @@
 {
     "name": "solana-transaction-validator",
     "author": "Alex Carrithers",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Declarative policy engine for validating Solana transactions",
     "type": "module",
     "main": "./dist/index.cjs",
