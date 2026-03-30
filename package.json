@@ -37,7 +37,7 @@
         "node": ">=18.0.0"
     },
     "scripts": {
-        "build": "tsup",
+        "build": "tsc --noEmit && tsup",
         "dev": "tsup --watch",
         "test": "vitest run src",
         "test:watch": "vitest src",
