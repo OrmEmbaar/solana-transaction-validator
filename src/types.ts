@@ -1,11 +1,11 @@
 import type {
     Address,
-    BaseTransactionMessage,
     CompiledTransactionMessage,
     CompiledTransactionMessageWithLifetime,
     Instruction,
     ReadonlyUint8Array,
     Transaction,
+    TransactionMessage,
     TransactionMessageWithFeePayer,
     TransactionMessageWithLifetime,
     TransactionVersion,
@@ -35,7 +35,7 @@ export interface ValidationContext {
     compiledMessage: CompiledTransactionMessage & CompiledTransactionMessageWithLifetime;
 
     /** The decompiled message (high-level, with resolved addresses) */
-    decompiledMessage: BaseTransactionMessage &
+    decompiledMessage: TransactionMessage &
         TransactionMessageWithFeePayer &
         TransactionMessageWithLifetime;
 }

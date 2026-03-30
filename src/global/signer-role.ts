@@ -1,4 +1,5 @@
 import { SignerRole, type ValidationContext, type ValidationResult } from "../types.js";
+import type { AccountLookupMeta, AccountMeta, Instruction } from "@solana/kit";
 import { isInstructionWithAccounts } from "@solana/kit";
 
 /**
@@ -17,9 +18,11 @@ export function validateSignerRole(role: SignerRole, ctx: ValidationContext): Va
     // - The fee payer (index 0) can also be a participant if used by instructions
     // - We want to detect actual usage by instructions, not just presence in account list
     // - This works because signers cannot be in address lookup tables (v0 transactions)
-    const isParticipant = ctx.decompiledMessage.instructions.some((ix) => {
+    const isParticipant = ctx.decompiledMessage.instructions.some((ix: Instruction) => {
         if (!isInstructionWithAccounts(ix)) return false;
-        return ix.accounts.some((acc) => acc.address === ctx.signer);
+        return ix.accounts.some(
+            (acc: AccountLookupMeta | AccountMeta) => acc.address === ctx.signer,
+        );
     });
 
     switch (role) {
