@@ -285,8 +285,7 @@ export function createToken2022Validator(config: Token2022PolicyConfig): Program
             // Look up the handler for this instruction type
             const handler = instructionHandlers[ixType];
             if (!handler) {
-                // No handler means this instruction just passes through (like extensions)
-                return true;
+                return `Token-2022: No validation handler for instruction type ${Token2022Instruction[ixType] ?? ixType}. Use \`true\` to explicitly allow without validation, or a callback for custom logic.`;
             }
 
             // Get the validator: user-provided callback or our built-in declarative validator
@@ -378,6 +377,10 @@ const instructionHandlers: Partial<Record<Token2022Instruction, InstructionHandl
 // ============================================================================
 
 function createTransferValidator(config: TransferConfig): TransferCallback {
+    if (config.allowedMints !== undefined) {
+        return () =>
+            `Token-2022: Transfer instruction does not include mint. Use TransferChecked to enforce allowedMints.`;
+    }
     return (_ctx, parsed) => {
         if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
             return `Token-2022: Transfer amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
@@ -401,6 +404,10 @@ function createTransferCheckedValidator(config: TransferConfig): TransferChecked
 }
 
 function createApproveValidator(config: ApproveConfig): ApproveCallback {
+    if (config.allowedMints !== undefined) {
+        return () =>
+            `Token-2022: Approve instruction does not include mint. Use ApproveChecked to enforce allowedMints.`;
+    }
     return (_ctx, parsed) => {
         if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
             return `Token-2022: Approve amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;

@@ -951,4 +951,68 @@ describe("createSplTokenValidator", () => {
             expect(result).toBe(true);
         });
     });
+
+    describe("Transfer rejects allowedMints config", () => {
+        it("should reject Transfer configured with allowedMints", async () => {
+            const policy = createSplTokenValidator({
+                instructions: {
+                    [TokenInstruction.Transfer]: {
+                        allowedMints: [MINT],
+                    },
+                },
+            });
+
+            const ix = getTransferInstruction({
+                source: TOKEN_ACCOUNT,
+                destination: DESTINATION,
+                authority: SIGNER,
+                amount: 1000n,
+            });
+
+            const result = await policy.validate(ctx, ix);
+            expect(result).toContain("TransferChecked");
+            expect(result).toContain("allowedMints");
+        });
+
+        it("should reject Approve configured with allowedMints", async () => {
+            const policy = createSplTokenValidator({
+                instructions: {
+                    [TokenInstruction.Approve]: {
+                        allowedMints: [MINT],
+                    },
+                },
+            });
+
+            const ix = getApproveInstruction({
+                source: TOKEN_ACCOUNT,
+                delegate: DELEGATE,
+                owner: SIGNER,
+                amount: 1000n,
+            });
+
+            const result = await policy.validate(ctx, ix);
+            expect(result).toContain("ApproveChecked");
+            expect(result).toContain("allowedMints");
+        });
+
+        it("should still allow Transfer with only maxAmount", async () => {
+            const policy = createSplTokenValidator({
+                instructions: {
+                    [TokenInstruction.Transfer]: {
+                        maxAmount: 1_000_000n,
+                    },
+                },
+            });
+
+            const ix = getTransferInstruction({
+                source: TOKEN_ACCOUNT,
+                destination: DESTINATION,
+                authority: SIGNER,
+                amount: 500_000n,
+            });
+
+            const result = await policy.validate(ctx, ix);
+            expect(result).toBe(true);
+        });
+    });
 });

@@ -384,12 +384,14 @@ const instructionHandlers: Partial<Record<TokenInstruction, InstructionHandler>>
 
 // --- Transfer validators ---
 function createTransferValidator(config: TransferConfig): TransferCallback {
+    if (config.allowedMints !== undefined) {
+        return () =>
+            `SPL Token: Transfer instruction does not include mint. Use TransferChecked to enforce allowedMints.`;
+    }
     return (_ctx, parsed) => {
         if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
             return `SPL Token: Transfer amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
         }
-        // Note: Transfer instruction doesn't include mint, can't validate allowedMints
-        // Use TransferChecked for mint validation
         return true;
     };
 }
@@ -410,6 +412,10 @@ function createTransferCheckedValidator(config: TransferConfig): TransferChecked
 
 // --- Approve validators ---
 function createApproveValidator(config: ApproveConfig): ApproveCallback {
+    if (config.allowedMints !== undefined) {
+        return () =>
+            `SPL Token: Approve instruction does not include mint. Use ApproveChecked to enforce allowedMints.`;
+    }
     return (_ctx, parsed) => {
         if (config.maxAmount !== undefined && parsed.data.amount > config.maxAmount) {
             return `SPL Token: Approve amount ${parsed.data.amount} exceeds limit ${config.maxAmount}`;
@@ -419,7 +425,6 @@ function createApproveValidator(config: ApproveConfig): ApproveCallback {
                 return `SPL Token: Approve delegate ${parsed.accounts.delegate.address} not in allowlist`;
             }
         }
-        // Note: Approve instruction doesn't include mint, can't validate allowedMints
         return true;
     };
 }

@@ -646,7 +646,7 @@ function checkAddressAllowed(
     candidate: Address,
     errorMessage: string,
 ): ValidationResult {
-    if (!allowlist || allowlist.length === 0) return true;
+    if (allowlist === undefined) return true;
     if (allowlist.includes(candidate)) return true;
     return errorMessage;
 }

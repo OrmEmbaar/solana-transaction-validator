@@ -672,4 +672,64 @@ describe("createSystemProgramValidator", () => {
             );
         });
     });
+
+    describe("empty allowlist handling", () => {
+        it("should deny transfer to any destination when allowedDestinations is []", async () => {
+            const policy = createSystemProgramValidator({
+                instructions: {
+                    [SystemInstruction.TransferSol]: {
+                        allowedDestinations: [],
+                    },
+                },
+            });
+
+            const ix = createTransferInstruction(1_000_000n, ANOTHER_DESTINATION);
+            const result = await policy.validate(ctx, ix);
+            expect(result).toContain("not in allowlist");
+        });
+
+        it("should deny nonce advance when allowedAuthorities is []", async () => {
+            const policy = createSystemProgramValidator({
+                instructions: {
+                    [SystemInstruction.AdvanceNonceAccount]: {
+                        allowedAuthorities: [],
+                    },
+                },
+            });
+
+            const ix = createAdvanceNonceInstruction({ authority: ANOTHER_NONCE_AUTHORITY });
+            const result = await policy.validate(ctx, ix);
+            expect(result).toContain("authority");
+            expect(result).toContain("not in allowlist");
+        });
+
+        it("should deny nonce withdraw when allowedNonceAccounts is []", async () => {
+            const policy = createSystemProgramValidator({
+                instructions: {
+                    [SystemInstruction.WithdrawNonceAccount]: {
+                        allowedNonceAccounts: [],
+                    },
+                },
+            });
+
+            const ix = createWithdrawNonceInstruction(1_000_000n, {
+                nonceAccount: ANOTHER_NONCE_ACCOUNT,
+            });
+            const result = await policy.validate(ctx, ix);
+            expect(result).toContain("nonce account");
+            expect(result).toContain("not in allowlist");
+        });
+
+        it("should allow when allowlist is undefined (no restriction)", async () => {
+            const policy = createSystemProgramValidator({
+                instructions: {
+                    [SystemInstruction.AdvanceNonceAccount]: {},
+                },
+            });
+
+            const ix = createAdvanceNonceInstruction({ authority: ANOTHER_NONCE_AUTHORITY });
+            const result = await policy.validate(ctx, ix);
+            expect(result).toBe(true);
+        });
+    });
 });

@@ -16,6 +16,8 @@ import {
     getCloseAccountInstruction,
     getFreezeAccountInstruction,
     getThawAccountInstruction,
+    getSyncNativeInstruction,
+    getInitializeAccountInstruction,
 } from "@solana-program/token-2022";
 
 // Valid base58 addresses
@@ -777,6 +779,96 @@ describe("createToken2022Validator", () => {
             const badResult = await policy.validate(ctx, badMint);
             expect(badResult).toContain("mint");
             expect(badResult).toContain("not in allowlist");
+        });
+    });
+
+    describe("unhandled instruction types with object config", () => {
+        it("should deny SyncNative when configured with object config", async () => {
+            const policy = createToken2022Validator({
+                instructions: {
+                    [Token2022Instruction.SyncNative]: {} as Record<string, never>,
+                },
+            });
+
+            const ix = getSyncNativeInstruction({ account: TOKEN_ACCOUNT });
+            const result = await policy.validate(ctx, ix);
+
+            expect(result).not.toBe(true);
+            expect(result).toContain("No validation handler");
+        });
+
+        it("should deny InitializeAccount when configured with object config", async () => {
+            const policy = createToken2022Validator({
+                instructions: {
+                    [Token2022Instruction.InitializeAccount]: {} as Record<string, never>,
+                },
+            });
+
+            const ix = getInitializeAccountInstruction({
+                account: TOKEN_ACCOUNT,
+                mint: MINT,
+                owner: SIGNER,
+            });
+            const result = await policy.validate(ctx, ix);
+
+            expect(result).not.toBe(true);
+            expect(result).toContain("No validation handler");
+        });
+
+        it("should still allow unhandled instruction types with true", async () => {
+            const policy = createToken2022Validator({
+                instructions: {
+                    [Token2022Instruction.SyncNative]: true,
+                },
+            });
+
+            const ix = getSyncNativeInstruction({ account: TOKEN_ACCOUNT });
+            const result = await policy.validate(ctx, ix);
+            expect(result).toBe(true);
+        });
+    });
+
+    describe("Transfer rejects allowedMints config", () => {
+        it("should reject Transfer configured with allowedMints", async () => {
+            const policy = createToken2022Validator({
+                instructions: {
+                    [Token2022Instruction.Transfer]: {
+                        allowedMints: [MINT],
+                    },
+                },
+            });
+
+            const ix = getTransferInstruction({
+                source: TOKEN_ACCOUNT,
+                destination: DESTINATION,
+                authority: SIGNER,
+                amount: 1000n,
+            });
+
+            const result = await policy.validate(ctx, ix);
+            expect(result).toContain("TransferChecked");
+            expect(result).toContain("allowedMints");
+        });
+
+        it("should reject Approve configured with allowedMints", async () => {
+            const policy = createToken2022Validator({
+                instructions: {
+                    [Token2022Instruction.Approve]: {
+                        allowedMints: [MINT],
+                    },
+                },
+            });
+
+            const ix = getApproveInstruction({
+                source: TOKEN_ACCOUNT,
+                delegate: DELEGATE,
+                owner: SIGNER,
+                amount: 1000n,
+            });
+
+            const result = await policy.validate(ctx, ix);
+            expect(result).toContain("ApproveChecked");
+            expect(result).toContain("allowedMints");
         });
     });
 });
